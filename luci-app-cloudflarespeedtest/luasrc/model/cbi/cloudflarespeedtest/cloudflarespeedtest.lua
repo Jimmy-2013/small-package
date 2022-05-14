@@ -4,7 +4,7 @@ local uci = luci.model.uci.cursor()
 
 m = Map('cloudflarespeedtest')
 m.title = translate('Cloudflare Speed Test')
-m.description = '<a href=\"https://github.com/mingxiaoyu/luci-app-jd-cloudflarespeedtest\" target=\"_blank\">GitHub</a>'
+m.description = '<a href=\"https://github.com/mingxiaoyu/luci-app-cloudflarespeedtest\" target=\"_blank\">GitHub</a>'
 
 -- [[ 基本设置 ]]--
 
@@ -90,7 +90,7 @@ o:depends("advanced", 1)
  
 o = s:option(Value, "dn", translate("Number of download speed tests"))
 o.datatype ="uinteger" 
-o.default = 2
+o.default = 1
 o.rmempty=true
 o:depends("advanced", 1)  
 
@@ -178,6 +178,106 @@ if nixio.fs.access("/etc/config/passwall") then
 
 end
 
+if nixio.fs.access("/etc/config/passwall2") then
+	s:tab("passwall2tab", translate("passwall2"))
+
+	o=s:taboption("passwall2tab", Flag, "passwall2_enabled",translate("PassWall2 Enabled"))
+	o.rmempty=true	
+
+	local passwall2_server_table = {}
+	uci:foreach("passwall2", "nodes", function(s)
+		if s.remarks then
+			passwall2_server_table[s[".name"]] = "[%s]:%s" % {string.upper(s.protocol or s.type), s.remarks}
+		end
+	end)
+
+	local passwall2_key_table = {}
+	for key, _ in pairs(passwall2_server_table) do
+		table.insert(passwall2_key_table, key)
+	end
+
+	table.sort(passwall2_key_table)
+
+	o = s:taboption("passwall2tab", DynamicList, "passwall2_services",
+			translate("Passwall2 Servers"),
+			translate("Please select a service"))
+			
+	for _, key in pairs(passwall2_key_table) do
+		o:value(key, passwall2_server_table[key])
+	end
+	o:depends("passwall2_enabled", 1)
+	o.forcewrite = true
+
+end
+
+s:tab("bypasstab", translate("Bypass"))
+if nixio.fs.access("/etc/config/bypass") then
+	
+	o=s:taboption("bypasstab", Flag, "bypass_enabled",translate("Bypass Enabled"))
+	o.rmempty=true	
+
+	local bypass_server_table = {}
+	uci:foreach("bypass", "servers", function(s)
+		if s.alias then
+			bypass_server_table[s[".name"]] = "[%s]:%s" % {string.upper(s.protocol or s.type), s.alias}
+		elseif s.server and s.server_port then
+			bypass_server_table[s[".name"]] = "[%s]:%s:%s" % {string.upper(s.protocol or s.type), s.server, s.server_port}
+		end
+	end)
+
+	local bypass_key_table = {}
+	for key, _ in pairs(bypass_server_table) do
+		table.insert(bypass_key_table, key)
+	end
+
+	table.sort(bypass_key_table)
+
+	o = s:taboption("bypasstab", DynamicList, "bypass_services",
+			translate("Bypass Servers"),
+			translate("Please select a service"))
+			
+	for _, key in pairs(bypass_key_table) do
+		o:value(key, bypass_server_table[key])
+	end
+	o:depends("bypass_enabled", 1)
+	o.forcewrite = true
+
+end
+
+s:tab("vssrtab", translate("Vssr"))
+if nixio.fs.access("/etc/config/vssr") then
+	
+	o=s:taboption("vssrtab", Flag, "vssr_enabled",translate("Vssr Enabled"))
+	o.rmempty=true	
+
+	local vssr_server_table = {}
+	uci:foreach("vssr", "servers", function(s)
+		if s.alias then
+			vssr_server_table[s[".name"]] = "[%s]:%s" % {string.upper(s.protocol or s.type), s.alias}
+		elseif s.server and s.server_port then
+			vssr_server_table[s[".name"]] = "[%s]:%s:%s" % {string.upper(s.protocol or s.type), s.server, s.server_port}
+		end
+	end)
+
+	local vssr_key_table = {}
+	for key, _ in pairs(vssr_server_table) do
+		table.insert(vssr_key_table, key)
+	end
+
+	table.sort(vssr_key_table)
+
+	o = s:taboption("vssrtab", DynamicList, "vssr_services",
+			translate("Vssr Servers"),
+			translate("Please select a service"))
+			
+	for _, key in pairs(vssr_key_table) do
+		o:value(key, vssr_server_table[key])
+	end
+	o:depends("vssr_enabled", 1)
+	o.forcewrite = true
+
+end
+
 s:tab("dnstab", translate("DNS"))
 
 o=s:taboption("dnstab", Flag, "DNS_enabled",translate("DNS Enabled"))
@@ -187,17 +287,17 @@ o:value("aliyu", translate("AliyuDNS"))
 o:depends("DNS_enabled", 1)
 
 o=s:taboption("dnstab", Value,"app_key",translate("Access Key ID"))
-o.rmempty=false
+o.rmempty=true
 o:depends("DNS_enabled", 1)
 o=s:taboption("dnstab", Value,"app_secret",translate("Access Key Secret"))
-o.rmempty=false
+o.rmempty=true
 o:depends("DNS_enabled", 1)
 
 o=s:taboption("dnstab", Value,"main_domain",translate("Main Domain"),translate("For example: test.github.com -> github.com"))
-o.rmempty=false
+o.rmempty=true
 o:depends("DNS_enabled", 1)
 o=s:taboption("dnstab", Value,"sub_domain",translate("Sub Domain"),translate("For example: test.github.com -> test"))
-o.rmempty=false
+o.rmempty=true
 o:depends("DNS_enabled", 1)
 
 o=s:taboption("dnstab", ListValue, "line", translate("Lines"))
@@ -207,6 +307,12 @@ o:value("unicom", translate("unicom"))
 o:value("mobile", translate("mobile"))
 o:depends("DNS_enabled", 1)
 o.default ="telecom"
+
+s:tab("dnshost", translate("HOST"))
+o=s:taboption("dnshost", Flag, "HOST_enabled",translate("HOST Enabled"))
+o=s:taboption("dnshost", Value,"host_domain",translate("Domain"))
+o.rmempty=true
+o:depends("HOST_enabled", 1)
 
 e=m:section(TypedSection,"global",translate("Best IP"))
 e.anonymous=true

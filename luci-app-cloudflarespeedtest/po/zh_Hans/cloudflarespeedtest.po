@@ -11,8 +11,8 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Generator: Weblate 4.8-dev\n"
 
-msgid "<a href=\"https://github.com/mingxiaoyu/luci-app-jd-cloudflarespeedtest\" target=\"_blank\">GitHub</a>"
-msgstr "<a href=\"https://github.com/mingxiaoyu/luci-app-jd-cloudflarespeedtest\" target=\"_blank\">GitHub项目地址</a>"
+msgid "<a href=\"https://github.com/mingxiaoyu/luci-app-cloudflarespeedtest\" target=\"_blank\">GitHub</a>"
+msgstr "<a href=\"https://github.com/mingxiaoyu/luci-app-cloudflarespeedtest\" target=\"_blank\">GitHub项目地址</a>"
 
 msgid "Cloudflare Speed Test"
 msgstr "Cloudflare速度测试"
@@ -59,11 +59,28 @@ msgstr "启用ShadowSocksR Plus+"
 msgid "Passwall Enabled"
 msgstr "启用Passwall"
 
+msgid "PassWall2 Enabled"
+msgstr "启用PassWall2"
+
+msgid "Bypass Enabled"
+msgstr "启用Bypass"
+
+msgid "Vssr Enabled"
+msgstr "启用Vssr"
 msgid "Shadowsocksr Servers"
 msgstr "ShadowSocksR Plus+服务"
 
 msgid "Passwall Servers"
 msgstr "Passwall服务"
+
+msgid "Passwall2 Servers"
+msgstr "Passwall2服务"
+
+msgid "Bypass Servers"
+msgstr "Bypass服务"
+
+msgid "Vssr Servers"
+msgstr "Vssr服务"
 
 msgid "Please select a service"
 msgstr "请选择一项服务"
@@ -196,3 +213,9 @@ msgstr "联通"
 
 msgid "mobile"
 msgstr "移动"
+
+msgid "HOST Enabled"
+msgstr "启用HOST"
+
+msgid "Domain"
+msgstr "域名"
