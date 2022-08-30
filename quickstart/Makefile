@@ -10,11 +10,11 @@ include $(TOPDIR)/rules.mk
 PKG_ARCH_quickstart:=$(ARCH)
 
 PKG_NAME:=quickstart
-PKG_VERSION:=0.4.5
+PKG_VERSION:=0.5.4
 PKG_RELEASE:=1
 PKG_SOURCE:=$(PKG_NAME)-binary-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://fw.koolcenter.com/binary/quickstart/
-PKG_HASH:=bff7bfca40ca4a7600d4325c120c1d956ed26d4fef192bccda40d60e1fa02bfe
+PKG_HASH:=78e69598982302e3cc1d59d1192b758b8b8d463c4bc88c6e5d0ed07242d1e9de
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-binary-$(PKG_VERSION)
 
@@ -28,7 +28,7 @@ define Package/$(PKG_NAME)
 	CATEGORY:=Network
 	SUBMENU:=Web Servers/Proxies
 	TITLE:=Quickstart, the quick start.
-	DEPENDS:=@(x86_64||aarch64)
+	DEPENDS:=@(x86_64||aarch64) +shadow-utils +shadow-useradd +mount-utils +lsblk +e2fsprogs +parted +smartmontools +smartd +mdadm
 	URL:=https://easepi.linkease.com/
 endef
 
@@ -52,10 +52,13 @@ define Build/Compile
 endef
 
 define Package/$(PKG_NAME)/install
-	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/init.d $(1)/etc/uci-defaults
+	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/init.d $(1)/etc/uci-defaults $(1)/etc/hotplug.d/block $(1)/etc/config
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/quickstart.$(PKG_ARCH_quickstart) $(1)/usr/sbin/quickstart
+	$(INSTALL_BIN) ./files/blockphy.sh $(1)/usr/sbin/blockphy.sh
 	$(INSTALL_BIN) ./files/quickstart.init $(1)/etc/init.d/quickstart
 	$(INSTALL_BIN) ./files/quickstart.uci-default $(1)/etc/uci-defaults/quickstart
+	$(INSTALL_BIN) ./files/quickstart.hotplug $(1)/etc/hotplug.d/block/11-quickstart
+	$(INSTALL_CONF) ./files/quickstart.config $(1)/etc/config/quickstart
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))

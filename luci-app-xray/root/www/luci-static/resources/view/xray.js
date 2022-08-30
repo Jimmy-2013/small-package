@@ -101,6 +101,7 @@ function check_resource_files(load_result) {
     let geoip_size = 0;
     let geosite_existence = false;
     let geosite_size = 0;
+    let firewall4 = false;
     let optional_features = {};
     for (const f of load_result) {
         if (f.name == "geoip.dat") {
@@ -110,6 +111,9 @@ function check_resource_files(load_result) {
         if (f.name == "geosite.dat") {
             geosite_existence = true;
             geosite_size = '%.2mB'.format(f.size);
+        }
+        if (f.name == "firewall_include.uc") {
+            firewall4 = true;
         }
         if (f.name.startsWith("optional_feature_")) {
             optional_features[f.name] = true;
@@ -121,6 +125,7 @@ function check_resource_files(load_result) {
         geosite_existence: geosite_existence,
         geosite_size: geosite_size,
         optional_features: optional_features,
+        firewall4: firewall4,
     }
 }
 
@@ -135,7 +140,8 @@ return view.extend({
 
     render: function (load_result) {
         const config_data = load_result[0];
-        const { geoip_existence, geoip_size, geosite_existence, geosite_size, optional_features } = check_resource_files(load_result[1]);
+        const geoip_direct_code = uci.get_first(config_data, "general", "geoip_direct_code");
+        const { geoip_existence, geoip_size, geosite_existence, geosite_size, optional_features, firewall4 } = check_resource_files(load_result[1]);
         let asset_file_status = _('WARNING: at least one of asset files (geoip.dat, geosite.dat) is not found under /usr/share/xray. Xray may not work properly. See <a href="https://github.com/yichya/luci-app-xray">here</a> for help.')
         if (geoip_existence) {
             if (geosite_existence) {
@@ -218,6 +224,14 @@ return view.extend({
         o.value("aes-256-gcm", "aes-256-gcm")
         o.value("aes-128-gcm", "aes-128-gcm")
         o.value("chacha20-poly1305", "chacha20-poly1305")
+        o.value("2022-blake3-aes-128-gcm", "2022-blake3-aes-128-gcm")
+        o.value("2022-blake3-aes-256-gcm", "2022-blake3-aes-256-gcm")
+        o.value("2022-blake3-chacha20-poly1305", "2022-blake3-chacha20-poly1305")
+        o.rmempty = false
+        o.modalonly = true
+
+        o = ss.taboption('protocol', form.Flag, 'shadowsocks_udp_over_tcp', _('[shadowsocks] UDP over TCP'), _('Only available for shadowsocks-2022 ciphers (2022-*)'))
+        o.depends("shadowsocks_security", /2022/)
         o.rmempty = false
         o.modalonly = true
 
@@ -521,11 +535,20 @@ return view.extend({
 
         s.tab('access_control', _('Transparent Proxy Rules'));
 
-        if (geoip_existence) {
-            o = s.taboption('access_control', form.Value, 'geoip_direct_code', _('GeoIP Direct Code'), _("Hosts in this GeoIP set will not be forwarded through Xray. Set to unspecified to forward all non-private hosts."))
+        if (geoip_direct_code === "upgrade" || geoip_direct_code === void 0) {
+            if (geoip_existence) {
+                o = s.taboption('access_control', form.DynamicList, 'geoip_direct_code_list', _('GeoIP Direct Code List'), _("Hosts in these GeoIP sets will not be forwarded through Xray. Remove all items to forward all non-private hosts."))
+            } else {
+                o = s.taboption('access_control', form.DynamicList, 'geoip_direct_code_list', _('GeoIP Direct Code List'), _("Resource file /usr/share/xray/geoip.dat not exist. All network traffic will be forwarded. <br/> Compile your firmware again with data files to use this feature, or<br/><a href=\"https://github.com/v2fly/geoip\">download one</a> (maybe disable transparent proxy first) and upload it to your router."))
+                o.readonly = true
+            }
         } else {
-            o = s.taboption('access_control', form.Value, 'geoip_direct_code', _('GeoIP Direct Code'), _("Resource file /usr/share/xray/geoip.dat not exist. All network traffic will be forwarded. <br/> Compile your firmware again with data files to use this feature, or<br/><a href=\"https://github.com/v2fly/geoip\">download one</a> (maybe disable transparent proxy first) and upload it to your router."))
-            o.readonly = true
+            if (geoip_existence) {
+                o = s.taboption('access_control', form.Value, 'geoip_direct_code', _('GeoIP Direct Code'), _("Hosts in this GeoIP set will not be forwarded through Xray. <br/> Switching to new format (by selecting 'Unspecified') is recommended for multiple GeoIP options here, <br/> and is required if you want to forward all non-private hosts. This legacy option will be removed later."))
+            } else {
+                o = s.taboption('access_control', form.Value, 'geoip_direct_code', _('GeoIP Direct Code'), _("Resource file /usr/share/xray/geoip.dat not exist. All network traffic will be forwarded. <br/> Compile your firmware again with data files to use this feature, or<br/><a href=\"https://github.com/v2fly/geoip\">download one</a> (maybe disable transparent proxy first) and upload it to your router."))
+                o.readonly = true
+            }
         }
         o.value("cn", "cn")
         o.value("telegram", "telegram")
@@ -538,9 +561,17 @@ return view.extend({
         o.default = "AsIs"
         o.rmempty = false
 
+        if (firewall4) {
+            o = s.taboption('access_control', form.DynamicList, 'uids_direct', _('Skip Proxy for uids'), _("Processes started by users with these uids won't be forwarded through Xray."))
+            o.datatype = "integer"
+
+            o = s.taboption('access_control', form.DynamicList, 'gids_direct', _('Skip Proxy for gids'), _("Processes started by users in groups with these gids won't be forwarded through Xray."))
+            o.datatype = "integer"
+        }
+
         o = s.taboption('access_control', form.DynamicList, "wan_bp_ips", _("Bypassed IP"), _("Requests to these IPs won't be forwarded through Xray."))
         o.datatype = "ip4addr"
-        o.rmempty = false
+        o.rmempty = true
 
         o = s.taboption('access_control', form.DynamicList, "wan_fw_ips", _("Forwarded IP"))
         o.datatype = "ip4addr"
