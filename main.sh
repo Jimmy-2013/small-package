@@ -101,6 +101,7 @@ git clone --depth 1 https://github.com/linkease/openwrt-app-actions
 git clone --depth 1 https://github.com/ZeaKyX/luci-app-speedtest-web
 git clone --depth 1 https://github.com/ZeaKyX/speedtest-web
 
+svn export https://github.com/coolsnowwolf/luci/trunk/libs/luci-lib-ipkg
 svn export https://github.com/kiddin9/openwrt-packages/trunk/luci-app-fileassistant
 svn export https://github.com/immortalwrt/luci/trunk/applications/luci-app-filebrowser
 svn export https://github.com/immortalwrt/luci/trunk/applications/luci-app-aliddns
@@ -133,6 +134,7 @@ svn export https://github.com/sirpdboy/netspeedtest/trunk/luci-app-netspeedtest
 svn export https://github.com/sbilly/netmaker-openwrt/trunk/netmaker
 svn export https://github.com/xiaorouji/openwrt-passwall2/trunk/luci-app-passwall2
 svn export https://github.com/openwrt/packages/trunk/net/shadowsocks-libev
+svn export https://github.com/immortalwrt/packages/trunk/multimedia/UnblockNeteaseMusic
 
 git_sparse_clone master "https://github.com/coolsnowwolf/packages" "leanpack" net/miniupnpd net/mwan3 multimedia/UnblockNeteaseMusic-Go \
 multimedia/UnblockNeteaseMusic net/amule net/baidupcs-web multimedia/gmediarender net/go-aliyundrive-webdav \

@@ -6,10 +6,11 @@ Focus on making the most of Xray (HTTP/HTTPS/Socks/TProxy inbounds, multiple pro
 
 ## Warnings
 
-* Support for nftables / firewall4 is **experimental** and
-    * only works with OpenWrt 22.03 versions or master branch with firewall4 as the only firewall implementation. Note that there is a possible bug in nftables 1.0.3 / 1.0.4 which breaks tproxy, so if you use master branch, make sure your source code is newer than [36bec544d73dbed46f06875fdfa570e89a40e553](https://github.com/openwrt/openwrt/commit/36bec544d73dbed46f06875fdfa570e89a40e553)
-    * may **NOT** be as stable as the old implementation using iptables and fw3 due to the lack of hooking facilities in fw4. However it should be good enough for daily use so if you encounter problems please report.
-    * currently only tested with a proper buildroot environment. Building ipk with OpenWrt SDK is **NOT** tested and is **NOT** likely to work right now. If you are building ipks yourself, use the proper version of buildroot toolchain which matches the firewall implementation (fw3 or fw4) you are using.
+* Since OpenWrt 22.03 release, the recommended firewall implementation for this project is now **firewall4** with some caveats
+    * currently this project still works on OpenWrt 19.07 / 21.02 versions. There's a warning about missing `kmod-nft-tproxy` when using these versions, just ignore it. This problem will be fixed later.
+    * support for versions mentioned above will soon be **deprecated**, which means that most new features won't be implemented for these old versions. Check changelog for details about future changes and availability of various new features.
+    * there is a possible bug in nftables 1.0.3 / 1.0.4 which breaks tproxy, so if you use master branch, make sure your source code is newer than [36bec544d73dbed46f06875fdfa570e89a40e553](https://github.com/openwrt/openwrt/commit/36bec544d73dbed46f06875fdfa570e89a40e553)
+    * currently building ipk with OpenWrt SDK is **NOT** tested and is **NOT** likely to work right now. If you are building ipks yourself, use the proper version of buildroot toolchain which matches the firewall implementation (fw3 or fw4) you are using.
 * There will be a series of **BREAKING CHANGES** in the following months due to some major refactor of DNS module. Please read changelog carefully to know about breaking changes and always backup your configuration files before updating.
 * If you see `WARNING: at least one of asset files (geoip.dat, geosite.dat) is not found under /usr/share/xray. Xray may not work properly` and don't know what to do:
     * try `opkg update && opkg install xray-geodata` (at least OpenWrt 21.02 releases)
@@ -44,6 +45,12 @@ Focus on making the most of Xray (HTTP/HTTPS/Socks/TProxy inbounds, multiple pro
 * 2022-08-08 fix: make sure forwarded IPs are always forwarded to Xray even for reserved addresses. Xray may not forward those requests so that manner may be changed later.
 * 2022-08-13 fix: apply 2022-08-08 fix to iptables as well
 * 2022-09-01 feat: specify outbound for manual transparent proxy
+* 2022-09-26 feat: show process running status
+* 2022-10-02 feat: detect xray binary path; allow changing default HTTPS server port
+* 2022-10-03 feat: switch to disable TCP / UDP transparent proxy
+* 2022-10-05 feat: dialer proxy
+* 2022-10-06 feat: use goto instead of jump in nftables rules
+* 2022-10-29 feat: rewrite gen_config in ucode
 
 ## Changelog 2021
 

@@ -9,10 +9,10 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=natflow
-PKG_VERSION:=20220926
+PKG_VERSION:=20221013
 
 PKG_SOURCE_URL:=https://codeload.github.com/ptpt52/natflow/tar.gz/$(PKG_VERSION)?
-PKG_HASH:=e96ac4d0b12970fc6e4b29a3dfeb689c2e19a1f50818dedeb3ff3f1f52574cb9
+PKG_HASH:=fd9010e21ba6536c37d061e9f4fcc7bdb542f537e5e0e5aaa1a1e8914afc9b9e
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 
 PKG_MAINTAINER:=Chen Minqiang <ptpt52@gmail.com>
@@ -26,7 +26,8 @@ define KernelPackage/natflow
   TITLE:=natflow kernel driver
   KCONFIG:= \
 	    CONFIG_NF_CONNTRACK_MARK=y \
-	    CONFIG_NETFILTER_INGRESS=y
+	    CONFIG_NETFILTER_INGRESS=y \
+	    CONFIG_NF_FLOW_TABLE
   FILES:=$(PKG_BUILD_DIR)/natflow.ko
   AUTOLOAD:=$(call AutoLoad,96,natflow)
   DEPENDS:= +kmod-ipt-conntrack +kmod-ipt-nat +kmod-ipt-ipset +kmod-br-netfilter
@@ -69,6 +70,8 @@ define Package/natflow-boot/install
 	$(INSTALL_BIN) ./files/natflow-boot.init $(1)/etc/init.d/natflow-boot
 	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
 	$(INSTALL_DATA) ./files/21-natflow-boot.hotplug $(1)/etc/hotplug.d/iface/21-natflow-boot
+	$(INSTALL_DIR) $(1)/lib/preinit
+	$(INSTALL_DATA) ./files/natflow-boot.preinit $(1)/lib/preinit/95_natflow-boot
 endef
 
 define Package/natflow-auth
