@@ -7,13 +7,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=alist
-PKG_VERSION:=3.2.1
-PKG_WEB_VERSION:=3.2.1
-PKG_RELEASE:=1
+PKG_VERSION:=3.35.0
+PKG_WEB_VERSION:=3.35.0
+PKG_RELEASE:=7
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/alist-org/alist/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=8d4c2ee46cac91e24b119cdb316ff498355e66d773da1c3c30b34d69b8b7cd79
+PKG_HASH:=e349a178cd41fff9b668e9d8df9ff1b407b7f6d6fd3dbb2f8a7ca9d0d5ecad55
 
 PKG_LICENSE:=GPL-3.0
 PKG_LICENSE_FILE:=LICENSE
@@ -23,77 +23,70 @@ define Download/$(PKG_NAME)-web
   FILE:=$(PKG_NAME)-web-$(PKG_WEB_VERSION).tar.gz
   URL_FILE:=dist.tar.gz
   URL:=https://github.com/alist-org/alist-web/releases/download/$(PKG_WEB_VERSION)/
-  HASH:=0fda7895fe4418d97d48b0d2d65eb70884181a1d4928823ac6a5729dc9a2cc6a
+  HASH:=940608c2b9f64cf585ad4d241545e5f1e59e5f6e54ef8ea2c9c3a29998313fc7
 endef
-
-PKG_CONFIG_DEPENDS:= \
-	CONFIG_ALIST_COMPRESS_GOPROXY \
-	CONFIG_ALIST_COMPRESS_UPX
 
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
 PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 
-PKG_ALIST:=github.com/alist-org/alist/v3/internal/conf
 GO_PKG:=github.com/alist-org/alist
 GO_PKG_LDFLAGS:=-w -s
 GO_PKG_LDFLAGS_X:= \
-	$(PKG_ALIST).Version=v$(PKG_VERSION)-$(ARCH) \
-	$(PKG_ALIST).WebVersion=$(PKG_WEB_VERSION)
+	$(GO_PKG)/v3/internal/conf.Version=v$(PKG_VERSION)-$(ARCH) \
+	$(GO_PKG)/v3/internal/conf.WebVersion=$(PKG_WEB_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
 include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
 
-define Package/$(PKG_NAME)/Default
-	SECTION:=net
-	CATEGORY:=Network
-	SUBMENU:=Web Servers/Proxies
-	TITLE:=Alist - Main program
-	URL:=https://alist-doc.nn.ci/
+define Package/$(PKG_NAME)
+  SECTION:=net
+  CATEGORY:=Network
+  SUBMENU:=Web Servers/Proxies
+  TITLE:=A file list program that supports multiple storage
+  URL:=https://alist.nn.ci/
+  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle
+endef
+
+define Package/$(PKG_NAME)/conffiles
+/etc/alist
+/etc/config/alist
 endef
 
 define Package/$(PKG_NAME)/description
-  A file list program that supports multiple storage
+  A file list program that supports multiple storage, powered by Gin and Solidjs.
 endef
 
-define Package/$(PKG_NAME)
-	$(call Package/alist/Default)
-	DEPENDS:=$(GO_ARCH_DEPENDS)
-endef
+ifeq ($(ARCH),arm)
+  ARM_CPU_FEATURES:=$(word 2,$(subst +,$(space),$(call qstrip,$(CONFIG_CPU_TYPE))))
+  ifeq ($(ARM_CPU_FEATURES),)
+    TARGET_CFLAGS:=
+    TARGET_LDFLAGS:=
+  endif
+endif
 
-define Package/$(PKG_NAME)/config
-config ALIST_COMPRESS_UPX
-	bool "Compress executable files with UPX"
-	default n
-
-config ALIST_COMPRESS_GOPROXY
-	bool "Compiling with GOPROXY proxy"
-	default n
-endef
-
-ifeq ($(CONFIG_ALIST_COMPRESS_GOPROXY),y)
-	export GO111MODULE=on
-	export GOPROXY=https://mirrors.aliyun.com/goproxy/
+ifneq ($(CONFIG_USE_MUSL),)
+  TARGET_CFLAGS += -D_LARGEFILE64_SOURCE
 endif
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
 	$(eval $(call Download,$(PKG_NAME)-web))
 	$(TAR) --strip-components=1 -C $(PKG_BUILD_DIR)/public/dist -xzf $(DL_DIR)/$(PKG_NAME)-web-$(PKG_WEB_VERSION).tar.gz
-	$(CP) ./files/assets/. $(PKG_BUILD_DIR)/public/dist/assets/
-endef
-
-define Build/Compile
-	$(call GoPackage/Build/Compile)
-ifneq ($(CONFIG_ALIST_COMPRESS_UPX),)
-	$(STAGING_DIR_HOST)/bin/upx --lzma --best $(GO_PKG_BUILD_BIN_DIR)/alist
+ifneq ($(CONFIG_ARCH_64BIT),y)
+	$(RM) -rf $(PKG_BUILD_DIR)/{drivers/lark.go,drivers/lark}
 endif
 endef
 
 define Package/$(PKG_NAME)/install
+	$(call GoPackage/Package/Install/Bin,$(PKG_INSTALL_DIR))
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/alist $(1)/usr/bin
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/alist $(1)/usr/bin
+	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d $(1)/etc/alist
+	$(INSTALL_CONF) $(CURDIR)/files/alist.config $(1)/etc/config/alist
+	$(INSTALL_BIN) $(CURDIR)/files/alist.init $(1)/etc/init.d/alist
+	$(INSTALL_DATA) $(CURDIR)/files/data.db $(1)/etc/alist/data.db
 endef
 
-$(eval $(call GoBinPackage,$(PKG_NAME)))
 $(eval $(call BuildPackage,$(PKG_NAME)))

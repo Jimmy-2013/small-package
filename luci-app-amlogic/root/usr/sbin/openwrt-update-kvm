@@ -49,9 +49,12 @@ fi
 # Find the partition where root is located
 # vda2 or vda3
 ROOT_PTNAME=$(df / | tail -n1 | awk '{print $1}' | awk -F '/' '{print $3}')
-if [ "${ROOT_PTNAME}" == "" ]; then
-    echo "Cannot find the partition corresponding to the root file system!"
-    exit 1
+if [[ -z "${ROOT_PTNAME}" ]]; then
+    ROOT_PTNAME="$(df /overlay | tail -n1 | awk '{print $1}' | awk -F '/' '{print $3}')"
+    if [[ -z "${ROOT_PTNAME}" ]]; then
+        echo "Cannot find the partition corresponding to the root file system!"
+        exit 1
+    fi
 fi
 
 # Find the disk where the partition is located, only supports sd?? hd?? vd??
@@ -69,28 +72,28 @@ esac
 
 function get_docker_root {
     local data_root
-    if [[ -f /etc/config/dockerd ]];then
-	data_root=$(uci get dockerd.globals.data_root)
+    if [[ -f /etc/config/dockerd ]]; then
+        data_root=$(uci get dockerd.globals.data_root)
     fi
     if [[ -z "${data_root}" ]] && [[ -f /etc/docker/daemon.json ]]; then
-	data_root=$(jq -r '."data-root"' /etc/docker/daemon.json)
+        data_root=$(jq -r '."data-root"' /etc/docker/daemon.json)
     fi
     echo "$data_root"
 }
 DOCKER_ROOT=$(get_docker_root)
 
-if [[ -z "${WORK_DIR}" ]];then
+if [[ -z "${WORK_DIR}" ]]; then
     WORK_DIR="/mnt/${DISK_NAME}${PART_PRESTR}4/"
 fi
-if [[ ! -d "${WORK_DIR}" ]];then
+if [[ ! -d "${WORK_DIR}" ]]; then
     echo "the work directory is not exists. [ ${WORK_DIR} ]"
     exit 1
 fi
 
 cd "${WORK_DIR}"
-if [[ -d "/tmp/upload" ]] && [[ -f "/tmp/upload/*img*" ]];then
-    mv -f /tmp/upload/*img* . 
-    if [[ $? -ne 0 ]];then
+if [[ -d "/tmp/upload" ]] && [[ -f "/tmp/upload/*img*" ]]; then
+    mv -f /tmp/upload/*img* .
+    if [[ $? -ne 0 ]]; then
         echo "move file failed."
         exit 1
     fi
@@ -160,17 +163,20 @@ else
     echo -ne "Whether to backup and restore the current config files? y/n [y]\b\b"
     read yn
     case $yn in
-      n* | N*) BR_FLAG=0;;
+    n* | N*) BR_FLAG=0 ;;
     esac
 fi
 
 # find root partition
 ROOT_PART_MSG=$(lsblk -l -o NAME,PATH,TYPE,UUID,MOUNTPOINT | awk '$3~/^part$/ && $5 ~ /^\/$/ {print $0}')
-ROOT_NAME=$(echo $ROOT_PART_MSG | awk '{print $1}')
-ROOT_DEV=$(echo $ROOT_PART_MSG | awk '{print $2}')
-ROOT_UUID=$(echo $ROOT_PART_MSG | awk '{print $4}')
+if [[ -z "${ROOT_PART_MSG}" ]]; then
+    ROOT_PART_MSG=$(lsblk -l -o NAME,PATH,TYPE,UUID,MOUNTPOINT | awk '$3~/^part$/ && $5 ~ /^\/overlay$/ {print $0}')
+fi
+ROOT_NAME=$(echo ${ROOT_PART_MSG} | awk '{print $1}')
+ROOT_DEV=$(echo ${ROOT_PART_MSG} | awk '{print $2}')
+ROOT_UUID=$(echo ${ROOT_PART_MSG} | awk '{print $4}')
 
-case $ROOT_NAME in
+case ${ROOT_NAME} in
 ${DISK_NAME}${PART_PRESTR}2)
     NEW_ROOT_NAME="${DISK_NAME}${PART_PRESTR}3"
     NEW_ROOT_LABEL="${LABEL_PRESTR}ROOTFS2"
@@ -214,14 +220,14 @@ fi
 # fix loopdev issue in kernel 5.19
 function fix_loopdev() {
     local parentdev=${1##*/}
-    if [ ! -d /sys/block/${parentdev} ];then
+    if [ ! -d /sys/block/${parentdev} ]; then
         return
     fi
     subdevs=$(lsblk -l -o NAME | grep -E "^${parentdev}.+\$")
     for subdev in $subdevs; do
-        if [ ! -d /sys/block/${parentdev}/${subdev} ];then
+        if [ ! -d /sys/block/${parentdev}/${subdev} ]; then
             return
-        elif [ -b /dev/${sub_dev} ];then
+        elif [ -b /dev/${sub_dev} ]; then
             continue
         fi
         source /sys/block/${parentdev}/${subdev}/uevent
@@ -592,7 +598,7 @@ mv /tmp/grub.cfg.prev ./EFI/BOOT/
 
 echo "Modify efi configuration ... "
 cd /boot/efi/EFI/BOOT
-cat > grub.cfg <<EOF
+cat >grub.cfg <<EOF
 echo "search fs_uuid ${NEW_ROOT_UUID} ..."
 search.fs_uuid ${NEW_ROOT_UUID} root
 echo "root=\$root"
@@ -604,7 +610,7 @@ EOF
 
 echo "Modify boot configuration ... "
 cd ${NEW_ROOT_MOUNTPOINT}/boot/grub2
-cat > grub.cfg <<EOF
+cat >grub.cfg <<EOF
 insmod gzio
 insmod part_gpt
 insmod zstd
@@ -630,6 +636,7 @@ umount -f ${P1} ${P2} 2>/dev/null
 losetup -D 2>/dev/null
 rm -rf ${P1} ${P2} 2>/dev/null
 rm -f ${IMG_NAME} 2>/dev/null
+rm -f sha256sums 2>/dev/null
 sync
 wait
 

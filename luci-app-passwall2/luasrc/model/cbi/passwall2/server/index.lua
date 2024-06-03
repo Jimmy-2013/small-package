@@ -1,6 +1,7 @@
-local api = require "luci.model.cbi.passwall2.api.api"
+local api = require "luci.passwall2.api"
 
 m = Map("passwall2_server", translate("Server-Side"))
+api.set_apply_on_parse(m)
 
 t = m:section(NamedSection, "global", "global")
 t.anonymous = true
@@ -16,15 +17,15 @@ t.sortable = true
 t.template = "cbi/tblsection"
 t.extedit = api.url("server_user", "%s")
 function t.create(e, t)
-    local uuid = api.gen_uuid()
-    t = uuid
-    TypedSection.create(e, t)
-    luci.http.redirect(e.extedit:format(t))
+	local uuid = api.gen_uuid()
+	t = uuid
+	TypedSection.create(e, t)
+	luci.http.redirect(e.extedit:format(t))
 end
 function t.remove(e, t)
-    e.map.proceed = true
-    e.map:del(t)
-    luci.http.redirect(api.url("server"))
+	e.map.proceed = true
+	e.map:del(t)
+	luci.http.redirect(api.url("server"))
 end
 
 e = t:option(Flag, "enable", translate("Enable"))
@@ -34,7 +35,7 @@ e.rmempty = false
 e = t:option(DummyValue, "status", translate("Status"))
 e.rawhtml = true
 e.cfgvalue = function(t, n)
-    return string.format('<font class="_users_status">%s</font>', translate("Collecting data..."))
+	return string.format('<font class="_users_status">%s</font>', translate("Collecting data..."))
 end
 
 e = t:option(DummyValue, "remarks", translate("Remarks"))
@@ -43,21 +44,14 @@ e.width = "15%"
 ---- Type
 e = t:option(DummyValue, "type", translate("Type"))
 e.cfgvalue = function(t, n)
-    local v = Value.cfgvalue(t, n)
-    if v then
-        if v == "V2ray" or v == "Xray" then
-            local protocol = m:get(n, "protocol")
-            if protocol == "vmess" then
-                protocol = "VMess"
-            elseif protocol == "vless" then
-                protocol = "VLESS"
-            else
-                protocol = protocol:gsub("^%l",string.upper)
-            end
-            return v .. " -> " .. protocol
-        end
-        return v
-    end
+	local v = Value.cfgvalue(t, n)
+	if v then
+		if v == "sing-box" or v == "Xray" then
+			local protocol = m:get(n, "protocol")
+			return v .. " -> " .. protocol
+		end
+		return v
+	end
 end
 
 e = t:option(DummyValue, "port", translate("Port"))

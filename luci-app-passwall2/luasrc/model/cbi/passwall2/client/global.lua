@@ -1,57 +1,72 @@
-local api = require "luci.model.cbi.passwall2.api.api"
+local api = require "luci.passwall2.api"
 local appname = api.appname
 local uci = api.uci
 local datatypes = api.datatypes
-local has_v2ray = api.is_finded("v2ray")
-local has_xray = api.is_finded("xray")
+local has_singbox = api.finded_com("singbox")
+local has_xray = api.finded_com("xray")
 
 m = Map(appname)
+api.set_apply_on_parse(m)
 
 local nodes_table = {}
 for k, e in ipairs(api.get_valid_nodes()) do
-    nodes_table[#nodes_table + 1] = e
+	nodes_table[#nodes_table + 1] = e
 end
 
-local socks_table = {}
+local normal_list = {}
+local balancing_list = {}
+local shunt_list = {}
+local iface_list = {}
+for k, v in pairs(nodes_table) do
+	if v.node_type == "normal" then
+		normal_list[#normal_list + 1] = v
+	end
+	if v.protocol and v.protocol == "_balancing" then
+		balancing_list[#balancing_list + 1] = v
+	end
+	if v.protocol and v.protocol == "_shunt" then
+		shunt_list[#shunt_list + 1] = v
+	end
+	if v.protocol and v.protocol == "_iface" then
+		iface_list[#iface_list + 1] = v
+	end
+end
+
+local socks_list = {}
 uci:foreach(appname, "socks", function(s)
-    if s.enabled == "1" and s.node then
-        local id, remarks
-        for k, n in pairs(nodes_table) do
-            if (s.node == n.id) then
-                remarks = n["remark"]; break
-            end
-        end
-        id = "127.0.0.1" .. ":" .. s.port
-        socks_table[#socks_table + 1] = {
-            id = id,
-            remarks = id .. " - " .. (remarks or translate("Misconfigured"))
-        }
-    end
+	if s.enabled == "1" and s.node then
+		socks_list[#socks_list + 1] = {
+			id = "Socks_" .. s[".name"],
+			remark = translate("Socks Config") .. " [" .. s.port .. "端口]"
+		}
+	end
 end)
 
 local doh_validate = function(self, value, t)
-    if value ~= "" then
-        local flag = 0
-        local util = require "luci.util"
-        local val = util.split(value, ",")
-        local url = val[1]
-        val[1] = nil
-        for i = 1, #val do
-            local v = val[i]
-            if v then
-                if not datatypes.ipmask4(v) then
-                    flag = 1
-                end
-            end
-        end
-        if flag == 0 then
-            return value
-        end
-    end
-    return nil, translate("DoH request address") .. " " .. translate("Format must be:") .. " URL,IP"
+	if value ~= "" then
+		local flag = 0
+		local util = require "luci.util"
+		local val = util.split(value, ",")
+		local url = val[1]
+		val[1] = nil
+		for i = 1, #val do
+			local v = val[i]
+			if v then
+				if not datatypes.ipmask4(v) then
+					flag = 1
+				end
+			end
+		end
+		if flag == 0 then
+			return value
+		end
+	end
+	return nil, translate("DoH request address") .. " " .. translate("Format must be:") .. " URL,IP"
 end
 
 m:append(Template(appname .. "/global/status"))
+
+local global_cfgid = uci:get_all(appname, "@global[0]")[".name"]
 
 s = m:section(TypedSection, "global")
 s.anonymous = true
@@ -65,122 +80,170 @@ o.rmempty = false
 
 ---- Node
 node = s:taboption("Main", ListValue, "node", "<a style='color: red'>" .. translate("Node") .. "</a>")
-node.description = ""
-local current_node = luci.sys.exec(string.format("[ -f '/tmp/etc/%s/id/TCP' ] && echo -n $(cat /tmp/etc/%s/id/TCP)", appname, appname))
-if current_node and current_node ~= "" and current_node ~= "nil" then
-    local n = uci:get_all(appname, current_node)
-    if n then
-        if tonumber(m:get("@auto_switch[0]", "enable") or 0) == 1 then
-            local remarks = api.get_full_node_remarks(n)
-            local url = api.url("node_config", current_node)
-            node.description = node.description .. translatef("Current node: %s", string.format('<a href="%s">%s</a>', url, remarks)) .. "<br />"
-        end
-    end
-end
 node:value("nil", translate("Close"))
 
 -- 分流
-if (has_v2ray or has_xray) and #nodes_table > 0 then
-    local normal_list = {}
-    local shunt_list = {}
-    for k, v in pairs(nodes_table) do
-        if v.node_type == "normal" then
-            normal_list[#normal_list + 1] = v
-        end
-        if v.protocol and v.protocol == "_shunt" then
-            shunt_list[#shunt_list + 1] = v
-        end
-    end
-    for k, v in pairs(shunt_list) do
-        uci:foreach(appname, "shunt_rules", function(e)
-            local id = e[".name"]
-            if id and e.remarks then
-                o = s:taboption("Main", ListValue, v.id .. "." .. id .. "_node", string.format('* <a href="%s" target="_blank">%s</a>', api.url("shunt_rules", id), e.remarks))
-                o:depends("node", v.id)
-                o:value("nil", translate("Close"))
-                o:value("_default", translate("Default"))
-                o:value("_direct", translate("Direct Connection"))
-                o:value("_blackhole", translate("Blackhole"))
-                for k1, v1 in pairs(normal_list) do
-                    o:value(v1.id, v1["remark"])
-                end
-                o.cfgvalue = function(self, section)
-                    return m:get(v.id, id) or "nil"
-                end
-                o.write = function(self, section, value)
-                    m:set(v.id, id, value)
-                end
-            end
-        end)
+if (has_singbox or has_xray) and #nodes_table > 0 then
+	local function get_cfgvalue(shunt_node_id, option)
+		return function(self, section)
+			return m:get(shunt_node_id, option) or "nil"
+		end
+	end
+	local function get_write(shunt_node_id, option)
+		return function(self, section, value)
+			m:set(shunt_node_id, option, value)
+		end
+	end
+	if #normal_list > 0 then
+		for k, v in pairs(shunt_list) do
+			local vid = v.id
+			-- shunt node type, Sing-Box or Xray
+			local type = s:taboption("Main", ListValue, vid .. "-type", translate("Type"))
+			if has_singbox then
+				type:value("sing-box", translate("Sing-Box"))
+			end
+			if has_xray then
+				type:value("Xray", translate("Xray"))
+			end
+			type.cfgvalue = get_cfgvalue(v.id, "type")
+			type.write = get_write(v.id, "type")
+			
+			-- pre-proxy
+			o = s:taboption("Main", Flag, vid .. "-preproxy_enabled", translate("Preproxy"))
+			o:depends("node", v.id)
+			o.rmempty = false
+			o.cfgvalue = get_cfgvalue(v.id, "preproxy_enabled")
+			o.write = get_write(v.id, "preproxy_enabled")
 
-        local id = "default_node"
-        o = s:taboption("Main", ListValue, v.id .. "." .. id, string.format('* <a style="color:red">%s</a>', translate("Default")))
-        o:depends("node", v.id)
-        o:value("_direct", translate("Direct Connection"))
-        o:value("_blackhole", translate("Blackhole"))
-        for k1, v1 in pairs(normal_list) do
-            o:value(v1.id, v1["remark"])
-        end
-        o.cfgvalue = function(self, section)
-            return m:get(v.id, id) or "nil"
-        end
-        o.write = function(self, section, value)
-            m:set(v.id, id, value)
-        end
-        
-        local id = "main_node"
-        o = s:taboption("Main", ListValue, v.id .. "." .. id, string.format('* <a style="color:red">%s</a>', translate("Default Preproxy")), translate("When using, localhost will connect this node first and then use this node to connect the default node."))
-        o:depends("node", v.id)
-        o:value("nil", translate("Close"))
-        for k1, v1 in pairs(normal_list) do
-            o:value(v1.id, v1["remark"])
-        end
-        o.cfgvalue = function(self, section)
-            return m:get(v.id, id) or "nil"
-        end
-        o.write = function(self, section, value)
-            m:set(v.id, id, value)
-        end
-    end
+			o = s:taboption("Main", ListValue, vid .. "-main_node", string.format('<a style="color:red">%s</a>', translate("Preproxy Node")), translate("Set the node to be used as a pre-proxy. Each rule (including <code>Default</code>) has a separate switch that controls whether this rule uses the pre-proxy or not."))
+			o:depends(vid .. "-preproxy_enabled", "1")
+			for k1, v1 in pairs(socks_list) do
+				o:value(v1.id, v1.remark)
+			end
+			for k1, v1 in pairs(balancing_list) do
+				o:value(v1.id, v1.remark)
+			end
+			for k1, v1 in pairs(iface_list) do
+				o:value(v1.id, v1.remark)
+			end
+			for k1, v1 in pairs(normal_list) do
+				o:value(v1.id, v1.remark)
+			end
+			if #o.keylist > 0 then
+				o.default = o.keylist[1]
+			end
+			o.cfgvalue = get_cfgvalue(v.id, "main_node")
+			o.write = get_write(v.id, "main_node")
+
+			if (has_singbox and has_xray) or (v.type == "sing-box" and not has_singbox) or (v.type == "Xray" and not has_xray) then
+				type:depends("node", v.id)
+			else
+				type:depends("node", "hide") --不存在的依赖，即始终隐藏
+			end
+
+			uci:foreach(appname, "shunt_rules", function(e)
+				local id = e[".name"]
+				local node_option = vid .. "-" .. id .. "_node"
+				if id and e.remarks then
+					o = s:taboption("Main", ListValue, node_option, string.format('* <a href="%s" target="_blank">%s</a>', api.url("shunt_rules", id), e.remarks))
+					o.cfgvalue = get_cfgvalue(v.id, id)
+					o.write = get_write(v.id, id)
+					o:depends("node", v.id)
+					o.default = "nil"
+					o:value("nil", translate("Close"))
+					o:value("_default", translate("Default"))
+					o:value("_direct", translate("Direct Connection"))
+					o:value("_blackhole", translate("Blackhole"))
+
+					local pt = s:taboption("Main", ListValue, vid .. "-".. id .. "_proxy_tag", string.format('* <a style="color:red">%s</a>', e.remarks .. " " .. translate("Preproxy")))
+					pt.cfgvalue = get_cfgvalue(v.id, id .. "_proxy_tag")
+					pt.write = get_write(v.id, id .. "_proxy_tag")
+					pt:value("nil", translate("Close"))
+					pt:value("main", translate("Preproxy Node"))
+					pt.default = "nil"
+					for k1, v1 in pairs(socks_list) do
+						o:value(v1.id, v1.remark)
+					end
+					for k1, v1 in pairs(balancing_list) do
+						o:value(v1.id, v1.remark)
+					end
+					for k1, v1 in pairs(iface_list) do
+						o:value(v1.id, v1.remark)
+					end
+					for k1, v1 in pairs(normal_list) do
+						o:value(v1.id, v1.remark)
+						pt:depends({ [node_option] = v1.id, [vid .. "-preproxy_enabled"] = "1" })
+					end
+				end
+			end)
+
+			local id = "default_node"
+			o = s:taboption("Main", ListValue, vid .. "-" .. id, string.format('* <a style="color:red">%s</a>', translate("Default")))
+			o.cfgvalue = get_cfgvalue(v.id, id)
+			o.write = get_write(v.id, id)
+			o:depends("node", v.id)
+			o.default = "_direct"
+			o:value("_direct", translate("Direct Connection"))
+			o:value("_blackhole", translate("Blackhole"))
+			for k1, v1 in pairs(socks_list) do
+				o:value(v1.id, v1.remark)
+			end
+			for k1, v1 in pairs(balancing_list) do
+				o:value(v1.id, v1.remark)
+			end
+			for k1, v1 in pairs(iface_list) do
+				o:value(v1.id, v1.remark)
+			end
+			for k1, v1 in pairs(normal_list) do
+				o:value(v1.id, v1.remark)
+			end
+
+			local id = "default_proxy_tag"
+			o = s:taboption("Main", ListValue, vid .. "-" .. id, string.format('* <a style="color:red">%s</a>', translate("Default Preproxy")), translate("When using, localhost will connect this node first and then use this node to connect the default node."))
+			o.cfgvalue = get_cfgvalue(v.id, id)
+			o.write = get_write(v.id, id)
+			o:value("nil", translate("Close"))
+			o:value("main", translate("Preproxy Node"))
+			for k1, v1 in pairs(normal_list) do
+				if v1.protocol ~= "_balancing" then
+					o:depends({ [vid .. "-default_node"] = v1.id, [vid .. "-preproxy_enabled"] = "1" })
+				end
+			end
+		end
+	else
+		local tips = s:taboption("Main", DummyValue, "tips", " ")
+		tips.rawhtml = true
+		tips.cfgvalue = function(t, n)
+			return string.format('<a style="color: red">%s</a>', translate("There are no available nodes, please add or subscribe nodes first."))
+		end
+		tips:depends({ node = "nil", ["!reverse"] = true })
+		for k, v in pairs(shunt_list) do
+			tips:depends("node", v.id)
+		end
+		for k, v in pairs(balancing_list) do
+			tips:depends("node", v.id)
+		end
+	end
 end
 
 o = s:taboption("Main", Flag, "localhost_proxy", translate("Localhost Proxy"), translate("When selected, localhost can transparent proxy."))
 o.default = "1"
 o.rmempty = false
 
+o = s:taboption("Main", Flag, "client_proxy", translate("Client Proxy"), translate("When selected, devices in LAN can transparent proxy. Otherwise, it will not be proxy. But you can still use access control to allow the designated device to proxy."))
+o.default = "1"
+o.rmempty = false
+
+node_socks_port = s:taboption("Main", Value, "node_socks_port", translate("Node") .. " Socks " .. translate("Listen Port"))
+node_socks_port.default = 1070
+node_socks_port.datatype = "port"
+
 s:tab("DNS", translate("DNS"))
-
-o = s:taboption("DNS", ListValue, "direct_dns_protocol", translate("Direct DNS Protocol"))
-o.default = "auto"
-o:value("auto", translate("Auto"))
-o:value("udp", "UDP")
-o:value("tcp", "TCP")
-o:value("doh", "DoH")
-
----- DNS Forward
-o = s:taboption("DNS", Value, "direct_dns", translate("Direct DNS"))
-o.datatype = "or(ipaddr,ipaddrport)"
-o.default = "119.29.29.29"
-o:value("114.114.114.114", "114.114.114.114 (114DNS)")
-o:value("119.29.29.29", "119.29.29.29 (DNSPod)")
-o:value("223.5.5.5", "223.5.5.5 (AliDNS)")
-o:depends("direct_dns_protocol", "udp")
-o:depends("direct_dns_protocol", "tcp")
-
----- DoH
-o = s:taboption("DNS", Value, "direct_dns_doh", translate("Direct DNS DoH"))
-o.default = "https://223.5.5.5/dns-query"
-o:value("https://1.12.12.12/dns-query", "DNSPod 1")
-o:value("https://120.53.53.53/dns-query", "DNSPod 2")
-o:value("https://223.5.5.5/dns-query", "AliDNS")
-o.validate = doh_validate
-o:depends("direct_dns_protocol", "doh")
 
 o = s:taboption("DNS", ListValue, "remote_dns_protocol", translate("Remote DNS Protocol"))
 o:value("tcp", "TCP")
 o:value("doh", "DoH")
 o:value("udp", "UDP")
-o:value("fakedns", "FakeDNS")
 
 ---- DNS Forward
 o = s:taboption("DNS", Value, "remote_dns", translate("Remote DNS"))
@@ -213,23 +276,61 @@ o:depends("remote_dns_protocol", "doh")
 
 o = s:taboption("DNS", Value, "remote_dns_client_ip", translate("Remote DNS EDNS Client Subnet"))
 o.description = translate("Notify the DNS server when the DNS query is notified, the location of the client (cannot be a private IP address).") .. "<br />" ..
-                translate("This feature requires the DNS server to support the Edns Client Subnet (RFC7871).")
+				translate("This feature requires the DNS server to support the Edns Client Subnet (RFC7871).")
 o.datatype = "ipaddr"
-o:depends("remote_dns_protocol", "tcp")
-o:depends("remote_dns_protocol", "doh")
+o:depends({ __hide = true })
 
-o = s:taboption("DNS", ListValue, "dns_query_strategy", translate("Query Strategy"))
+o = s:taboption("DNS", ListValue, "remote_dns_detour", translate("Remote DNS Outbound"))
+o.default = "remote"
+o:value("remote", translate("Remote"))
+o:value("direct", translate("Direct"))
+
+o = s:taboption("DNS", Flag, "remote_fakedns", "FakeDNS", translate("Use FakeDNS work in the shunt domain that proxy."))
+o.default = "0"
+o.rmempty = false
+
+o = s:taboption("DNS", ListValue, "remote_dns_query_strategy", translate("Remote Query Strategy"))
 o.default = "UseIPv4"
 o:value("UseIP")
 o:value("UseIPv4")
---o:value("UseIPv6")
+o:value("UseIPv6")
 
-hosts = s:taboption("DNS", TextValue, "dns_hosts", translate("Domain Override"))
-hosts.rows = 5
-hosts.wrap = "off"
+o = s:taboption("DNS", TextValue, "dns_hosts", translate("Domain Override"))
+o.rows = 5
+o.wrap = "off"
+o:depends({ __hide = true })
+o.remove = function(self, section)
+	local node_value = node:formvalue(global_cfgid)
+	if node_value ~= "nil" then
+		local node_t = m:get(node_value) or {}
+		if node_t.type == "Xray" then
+			AbstractValue.remove(self, section)
+		end
+	end
+end
+
+o = s:taboption("DNS", Flag, "write_ipset_direct", translate("Direct DNS result write to IPSet"), translate("Perform the matching direct domain name rules into IP to IPSet/NFTSet, and then connect directly (not entering the core). Maybe conflict with some special circumstances."))
+o.default = "1"
+o.rmempty = false
+
+o = s:taboption("DNS", Button, "clear_ipset", translate("Clear IPSet"), translate("Try this feature if the rule modification does not take effect."))
+o.inputstyle = "remove"
+function o.write(e, e)
+	luci.sys.call('[ -n "$(nft list sets 2>/dev/null | grep \"passwall2_\")" ] && sh /usr/share/passwall2/nftables.sh flush_nftset_reload || sh /usr/share/passwall2/iptables.sh flush_ipset_reload > /dev/null 2>&1 &')
+	luci.http.redirect(api.url("log"))
+end
+
+for k, v in pairs(nodes_table) do
+	if v.type == "Xray" then
+		s.fields["remote_dns_client_ip"]:depends({ node = v.id, remote_dns_protocol = "tcp" })
+		s.fields["remote_dns_client_ip"]:depends({ node = v.id, remote_dns_protocol = "doh" })
+		s.fields["dns_hosts"]:depends({ node = v.id })
+	end
+end
 
 s:tab("log", translate("Log"))
-o = s:taboption("log", Flag, "close_log", translate("Close Node Log"))
+o = s:taboption("log", Flag, "log_node", translate("Enable Node Log"))
+o.default = "1"
 o.rmempty = false
 
 loglevel = s:taboption("log", ListValue, "loglevel", translate("Log Level"))
@@ -249,17 +350,21 @@ o = s:taboption("Main", Flag, "socks_enabled", "Socks " .. translate("Main switc
 o.rmempty = false
 
 s = m:section(TypedSection, "socks", translate("Socks Config"))
+s.template = "cbi/tblsection"
 s.anonymous = true
 s.addremove = true
-s.template = "cbi/tblsection"
+s.extedit = api.url("socks_config", "%s")
 function s.create(e, t)
-    TypedSection.create(e, api.gen_uuid())
+	local uuid = api.gen_short_uuid()
+	t = uuid
+	TypedSection.create(e, t)
+	luci.http.redirect(e.extedit:format(t))
 end
 
 o = s:option(DummyValue, "status", translate("Status"))
 o.rawhtml = true
 o.cfgvalue = function(t, n)
-    return string.format('<div class="_status" socks_id="%s"></div>', n)
+	return string.format('<div class="_status" socks_id="%s"></div>', n)
 end
 
 ---- Enable
@@ -269,12 +374,12 @@ o.rmempty = false
 
 socks_node = s:option(ListValue, "node", translate("Socks Node"))
 
-local n = 0
+local n = 1
 uci:foreach(appname, "socks", function(s)
-    if s[".name"] == section then
-        return false
-    end
-    n = n + 1
+	if s[".name"] == section then
+		return false
+	end
+	n = n + 1
 end)
 
 o = s:option(Value, "port", "Socks " .. translate("Listen Port"))
@@ -282,21 +387,21 @@ o.default = n + 1080
 o.datatype = "port"
 o.rmempty = false
 
-if has_v2ray or has_xray then
-    o = s:option(Value, "http_port", "HTTP " .. translate("Listen Port") .. " " .. translate("0 is not use"))
-    o.default = 0
-    o.datatype = "port"
+if has_singbox or has_xray then
+	o = s:option(Value, "http_port", "HTTP " .. translate("Listen Port") .. " " .. translate("0 is not use"))
+	o.default = 0
+	o.datatype = "port"
 end
 
 for k, v in pairs(nodes_table) do
-    node:value(v.id, v["remark"])
-    if v.type == "Socks" then
-        if has_v2ray or has_xray then
-            socks_node:value(v.id, v["remark"])
-        end
-    else
-        socks_node:value(v.id, v["remark"])
-    end
+	node:value(v.id, v["remark"])
+	if v.type == "Socks" then
+		if has_singbox or has_xray then
+			socks_node:value(v.id, v["remark"])
+		end
+	else
+		socks_node:value(v.id, v["remark"])
+	end
 end
 
 m:append(Template(appname .. "/global/footer"))

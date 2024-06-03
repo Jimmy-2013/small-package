@@ -9,20 +9,23 @@ function index()
 	page.dependent = true
 	page.acl_depends = { "luci-app-amlogic" }
 
-	local platfrom = luci.sys.exec("cat /etc/flippy-openwrt-release 2>/dev/null | grep PLATFORM | awk -F'=' '{print $2}' | grep -oE '(amlogic|rockchip|allwinner|qemu)'") or "Unknown"
-	entry({ "admin", "system", "amlogic", "info" }, cbi("amlogic/amlogic_info"), _("Amlogic Service"), 1).leaf = true
-	if (string.find(platfrom, "amlogic")) ~= nil then
-	entry({ "admin", "system", "amlogic", "install" }, cbi("amlogic/amlogic_install"), _("Install OpenWrt"), 2).leaf = true
+	local platfrom = luci.sys.exec("cat /etc/flippy-openwrt-release 2>/dev/null | grep PLATFORM | awk -F'=' '{print $2}' | grep -oE '(amlogic|rockchip|allwinner|qemu)' | xargs") or "Unknown"
+	local install_menu = luci.sys.exec("cat /etc/flippy-openwrt-release 2>/dev/null | grep SHOW_INSTALL_MENU | awk -F'=' '{print $2}' | grep -oE '(yes|no)' | xargs") or "Unknown"
+
+	entry({ "admin", "system", "amlogic", "info" }, form("amlogic/amlogic_info"), _("Amlogic Service"), 1).leaf = true
+	if (string.find(platfrom, "amlogic")) ~= nil or (string.find(install_menu, "yes")) ~= nil then
+		entry({ "admin", "system", "amlogic", "install" }, form("amlogic/amlogic_install"), _("Install OpenWrt"), 2).leaf = true
 	end
-	entry({ "admin", "system", "amlogic", "upload" }, cbi("amlogic/amlogic_upload"), _("Manually Upload Update"), 3).leaf = true
-	entry({ "admin", "system", "amlogic", "check" }, cbi("amlogic/amlogic_check"), _("Online Download Update"), 4).leaf = true
-	entry({ "admin", "system", "amlogic", "backup" }, cbi("amlogic/amlogic_backup"), _("Backup Firmware Config"), 5).leaf = true
+	entry({ "admin", "system", "amlogic", "upload" }, form("amlogic/amlogic_upload"), _("Manually Upload Update"), 3).leaf = true
+	entry({ "admin", "system", "amlogic", "check" }, form("amlogic/amlogic_check"), _("Online Download Update"), 4).leaf = true
+	entry({ "admin", "system", "amlogic", "backup" }, form("amlogic/amlogic_backup"), _("Backup Firmware Config"), 5).leaf = true
+	entry({ "admin", "system", "amlogic", "backuplist" }, form("amlogic/amlogic_backuplist")).leaf = true
 	if (string.find(platfrom, "qemu")) == nil then
-	entry({ "admin", "system", "amlogic", "armcpu" }, cbi("amlogic/amlogic_armcpu"), _("CPU Settings"), 6).leaf = true
+		entry({ "admin", "system", "amlogic", "armcpu" }, cbi("amlogic/amlogic_armcpu"), _("CPU Settings"), 6).leaf = true
 	end
 	entry({ "admin", "system", "amlogic", "config" }, cbi("amlogic/amlogic_config"), _("Plugin Settings"), 7).leaf = true
-	entry({ "admin", "system", "amlogic", "log" }, cbi("amlogic/amlogic_log"), _("Server Logs"), 8).leaf = true
-	entry({ "admin", "system", "amlogic", "poweroff" }, cbi("amlogic/amlogic_poweroff"), _("PowerOff"), 9).leaf = true
+	entry({ "admin", "system", "amlogic", "log" }, form("amlogic/amlogic_log"), _("Server Logs"), 8).leaf = true
+	entry({ "admin", "system", "amlogic", "poweroff" }, form("amlogic/amlogic_poweroff"), _("PowerOff"), 9).leaf = true
 	entry({ "admin", "system", "amlogic", "check_firmware" }, call("action_check_firmware"))
 	entry({ "admin", "system", "amlogic", "check_plugin" }, call("action_check_plugin"))
 	entry({ "admin", "system", "amlogic", "check_kernel" }, call("action_check_kernel"))
@@ -33,11 +36,13 @@ function index()
 	entry({ "admin", "system", "amlogic", "start_check_firmware" }, call("action_start_check_firmware")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_check_plugin" }, call("action_start_check_plugin")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_check_kernel" }, call("action_start_check_kernel")).leaf = true
+	entry({ "admin", "system", "amlogic", "start_check_rescue" }, call("action_start_check_rescue")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_check_upfiles" }, call("action_start_check_upfiles")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_amlogic_install" }, call("action_start_amlogic_install")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_amlogic_update" }, call("action_start_amlogic_update")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_amlogic_kernel" }, call("action_start_amlogic_kernel")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_amlogic_plugin" }, call("action_start_amlogic_plugin")).leaf = true
+	entry({ "admin", "system", "amlogic", "start_amlogic_rescue" }, call("action_start_amlogic_rescue")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_snapshot_delete" }, call("action_start_snapshot_delete")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_snapshot_restore" }, call("action_start_snapshot_restore")).leaf = true
 	entry({ "admin", "system", "amlogic", "start_snapshot_list" }, call("action_check_snapshot")).leaf = true
@@ -82,13 +87,13 @@ else
 end
 
 --Device identification
-device_platfrom = trim(luci.sys.exec("cat /etc/flippy-openwrt-release 2>/dev/null | grep PLATFORM | awk -F'=' '{print $2}' | grep -oE '(amlogic|rockchip|allwinner|qemu)'")) or "Unknown"
+device_platfrom = luci.sys.exec("cat /etc/flippy-openwrt-release 2>/dev/null | grep PLATFORM | awk -F'=' '{print $2}' | grep -oE '(amlogic|rockchip|allwinner|qemu)' | xargs") or "Unknown"
 if (string.find(device_platfrom, "rockchip")) ~= nil then
 	device_install_script = ""
 	device_update_script = "openwrt-update-rockchip"
 	device_kernel_script = "openwrt-kernel"
 elseif (string.find(device_platfrom, "allwinner")) ~= nil then
-	device_install_script = ""
+	device_install_script = "openwrt-install-allwinner"
 	device_update_script = "openwrt-update-allwinner"
 	device_kernel_script = "openwrt-kernel"
 elseif (string.find(device_platfrom, "qemu")) ~= nil then
@@ -126,6 +131,7 @@ function action_refresh_log()
 		luci.sys.exec("echo '' > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
 		luci.sys.exec("echo '' > /tmp/amlogic/amlogic_check_kernel.log && sync >/dev/null 2>&1")
 		luci.sys.exec("echo '' > /tmp/amlogic/amlogic_check_firmware.log && sync >/dev/null 2>&1")
+		luci.sys.exec("echo '' > /tmp/amlogic/amlogic_check_rescue.log && sync >/dev/null 2>&1")
 		luci.sys.exec("echo '' > /tmp/amlogic/amlogic_running_script.log && sync >/dev/null 2>&1")
 	end
 	luci.http.prepare_content("text/plain; charset=utf-8")
@@ -144,16 +150,17 @@ function action_del_log()
 	luci.sys.exec(": > /tmp/amlogic/amlogic_check_plugin.log")
 	luci.sys.exec(": > /tmp/amlogic/amlogic_check_kernel.log")
 	luci.sys.exec(": > /tmp/amlogic/amlogic_check_firmware.log")
+	luci.sys.exec(": > /tmp/amlogic/amlogic_check_rescue.log")
 	luci.sys.exec(": > /tmp/amlogic/amlogic_running_script.log")
 end
 
 --Upgrade luci-app-amlogic plugin
 function start_amlogic_plugin()
 	luci.sys.call("echo '1@Plugin update in progress, try again later!' > /tmp/amlogic/amlogic_running_script.log && sync >/dev/null 2>&1")
-	local ipk_state = luci.sys.call("[ -f /etc/config/amlogic ] && cp -vf /etc/config/amlogic /etc/config/amlogic_bak > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
-	local ipk_state = luci.sys.call("opkg --force-reinstall install /tmp/amlogic/*.ipk > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
-	local ipk_state = luci.sys.call("[ -f /etc/config/amlogic_bak ] && cp -vf /etc/config/amlogic_bak /etc/config/amlogic > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
-	local ipk_state = luci.sys.call("rm -rf /tmp/luci-indexcache /tmp/luci-modulecache/* /etc/config/amlogic_bak >/dev/null 2>&1")
+	luci.sys.call("[ -f /etc/config/amlogic ] && cp -vf /etc/config/amlogic /etc/config/amlogic_bak > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
+	luci.sys.call("opkg --force-reinstall install /tmp/amlogic/*.ipk > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
+	luci.sys.call("[ -f /etc/config/amlogic_bak ] && cp -vf /etc/config/amlogic_bak /etc/config/amlogic > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
+	luci.sys.call("rm -rf /tmp/luci-indexcache /tmp/luci-modulecache/* /etc/config/amlogic_bak >/dev/null 2>&1")
 	luci.sys.call("echo '' > /tmp/amlogic/amlogic_running_script.log && sync >/dev/null 2>&1")
 	local state = luci.sys.call("echo 'Successful Update' > /tmp/amlogic/amlogic_check_plugin.log && sync >/dev/null 2>&1")
 	return state
@@ -178,6 +185,15 @@ function start_amlogic_update()
 	local update_write_path = res[3] or "/tmp"
 	luci.sys.call("echo " .. update_firmware_updated .. " > " .. update_write_path .. "/.luci-app-amlogic/op_release_code 2>/dev/null && sync")
 	local state = luci.sys.call("/usr/sbin/" .. device_update_script .. " " .. update_firmware_name .. " " .. auto_write_bootloader .. " " .. update_restore_config .. " > /tmp/amlogic/amlogic_check_firmware.log && sync 2>/dev/null")
+	return state
+end
+
+--Read rescue kernel log
+local function start_amlogic_rescue()
+	luci.sys.call("echo '4@Kernel rescue in progress, try again later!' > /tmp/amlogic/amlogic_running_script.log && sync >/dev/null 2>&1")
+	luci.sys.call("chmod +x /usr/sbin/" .. device_kernel_script .. " >/dev/null 2>&1")
+	local state = luci.sys.call("/usr/sbin/" .. device_kernel_script .. " -s > /tmp/amlogic/amlogic_check_rescue.log && sync >/dev/null 2>&1")
+	luci.sys.call("echo '' > /tmp/amlogic/amlogic_running_script.log && sync >/dev/null 2>&1")
 	return state
 end
 
@@ -277,6 +293,11 @@ local function start_check_firmware()
 	return luci.sys.exec("sed -n '$p' /tmp/amlogic/amlogic_check_firmware.log 2>/dev/null")
 end
 
+--Read rescue kernel log
+local function start_check_rescue()
+	return luci.sys.exec("sed -n '$p' /tmp/amlogic/amlogic_check_rescue.log 2>/dev/null")
+end
+
 --Read openwrt install log
 local function start_check_install()
 	return luci.sys.exec("sed -n '$p' /tmp/amlogic/amlogic_check_install.log 2>/dev/null")
@@ -303,6 +324,14 @@ function action_start_check_firmware()
 	luci.http.prepare_content("application/json")
 	luci.http.write_json({
 		start_check_firmware = start_check_firmware();
+	})
+end
+
+--Return online check rescue kernel result
+function action_start_check_rescue()
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		start_check_rescue = start_check_rescue();
 	})
 end
 
@@ -362,6 +391,14 @@ function action_start_amlogic_plugin()
 	})
 end
 
+--Return rescue kernel result
+function action_start_amlogic_rescue()
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		start_amlogic_rescue = start_amlogic_rescue();
+	})
+end
+
 --Return files upload result
 function action_start_check_upfiles()
 	luci.http.prepare_content("application/json")
@@ -409,8 +446,11 @@ end
 
 --Read external model database
 local function my_model_database()
-	local state = luci.sys.exec("cat /etc/model_database.txt | grep -E '^[0-9]{1,9}.*:' | awk -F ':' '{print $1,$2}' OFS='###' ORS='@@@' | tr ' ' '~' 2>&1")
-	return state
+	if (string.find(device_platfrom, "allwinner")) ~= nil then
+		return luci.sys.exec("cat /etc/model_database.txt 2>/dev/null | grep -E '^w[0-9]{1,9}.*:' | awk -F ':' '{print $1,$2}' OFS='###' ORS='@@@' | tr ' ' '~' 2>&1")
+	else
+		return luci.sys.exec("cat /etc/model_database.txt 2>/dev/null | grep -E '^[0-9]{1,9}.*:' | awk -F ':' '{print $1,$2}' OFS='###' ORS='@@@' | tr ' ' '~' 2>&1")
+	end
 end
 
 --Return external model database

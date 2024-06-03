@@ -4,14 +4,15 @@
 START=45
 
 boot() {
-    [ -s /etc/.app_store.id ] && return 0
+    local ARCH=`/bin/is-opkg arch`
+    generate_store_id $ARCH
+    generate_super_arch $ARCH
+}
 
-    mkdir -p /tmp/is-inst/var/lock
-    mkdir -p /tmp/is-inst/etc
-    cp -a /etc/opkg.conf /tmp/is-inst/etc/
-    cp -a /etc/opkg /tmp/is-inst/etc/
-    ARCH=`opkg -f /tmp/is-inst/etc/opkg.conf --offline-root /tmp/is-inst print-architecture | grep '^arch ' | grep -v 'arch all' | grep -v 'arch noarch' | sed -E 's/^arch ([^ ]+) (\d+)$/\2 \1/g' | sort -n -r | head -1 | cut -d ' ' -f2`
-    rm -rf /tmp/is-inst
+generate_store_id() {
+    [ -s /etc/.app_store.id ] && return 0
+    local ARCH=$1
+    local iface HASH
 
     for iface in eth0 br-lan; do
         if [ -e /sys/class/net/$iface/address ]; then
@@ -25,4 +26,29 @@ boot() {
     fi
 
     echo "{\"arch\":\"${ARCH}\", \"uid\":\"${HASH}\"}" > /etc/.app_store.id
+}
+
+generate_super_arch() {
+    local ARCH=$1
+    local super_arch
+    case "$ARCH" in
+    arm*)
+        super_arch="arm"
+        ;;
+    i386)
+        super_arch="x86"
+        ;;
+    x86_64)
+        super_arch="x86_64"
+        ;;
+    *)
+        super_arch="${ARCH%%_*}"
+        ;;
+    esac
+    local old=`uci -q get istore.istore.super_arch`
+    [ "$old" = "$super_arch" ] && return 0
+    uci -q batch <<-EOF >/dev/null
+        set istore.istore.super_arch=$super_arch
+        commit istore
+EOF
 }

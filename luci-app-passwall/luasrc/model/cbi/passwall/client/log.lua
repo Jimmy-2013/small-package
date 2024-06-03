@@ -1,5 +1,5 @@
-local api = require "luci.model.cbi.passwall.api.api"
-local appname = api.appname
+local api = require "luci.passwall.api"
+local appname = "passwall"
 
 f = SimpleForm(appname)
 f.reset = false

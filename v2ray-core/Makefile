@@ -5,12 +5,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=v2ray-core
-PKG_VERSION:=5.1.0
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_VERSION:=5.16.1
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/v2fly/v2ray-core/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=b3dbd2bbee9486999b81d1968545c5a6caa7b0f4726a7259939f1bda54fcf5ea
+PKG_HASH:=e5d61b97168ebdf6da3d672ab40abe5b22951d46997072ca1ee497a3aa47ba05
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
@@ -19,6 +19,7 @@ PKG_MAINTAINER:=Tianling Shen <cnsztl@immortalwrt.org>
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
 PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 
 GO_PKG:=github.com/v2fly/v2ray-core/v5
 GO_PKG_BUILD_PKG:=$(GO_PKG)/main
@@ -41,13 +42,6 @@ define Package/v2ray-core
   DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle
 endef
 
-define Package/v2ray-example
-  $(call Package/v2ray/template)
-  TITLE+= (example configs)
-  DEPENDS:=v2ray-core
-  PKGARCH:=all
-endef
-
 define Package/v2ray-extra
   $(call Package/v2ray/template)
   TITLE+= (extra resources)
@@ -64,41 +58,16 @@ define Package/v2ray-core/description
   $(call Package/v2ray/description)
 endef
 
-define Package/v2ray-example/description
-  $(call Package/v2ray/description)
-
-  This includes example configuration files for v2ray-core.
-endef
-
 define Package/v2ray-extra/description
   $(call Package/v2ray/description)
 
   This includes extra resources for v2ray-core.
 endef
 
-define Package/v2ray-core/conffiles
-/etc/config/v2ray
-/etc/v2ray/
-endef
-
 define Package/v2ray-core/install
 	$(call GoPackage/Package/Install/Bin,$(PKG_INSTALL_DIR))
 	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/main $(1)/usr/bin/v2ray
-
-	$(INSTALL_DIR) $(1)/etc/v2ray/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/release/config/config.json $(1)/etc/v2ray/
-
-	$(INSTALL_DIR) $(1)/etc/config/
-	$(INSTALL_CONF) $(CURDIR)/files/v2ray.conf $(1)/etc/config/v2ray
-	$(INSTALL_DIR) $(1)/etc/init.d/
-	$(INSTALL_BIN) $(CURDIR)/files/v2ray.init $(1)/etc/init.d/v2ray
-endef
-
-define Package/v2ray-example/install
-	$(INSTALL_DIR) $(1)/etc/v2ray/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/release/config/vpoint_socks_vmess.json $(1)/etc/v2ray/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/release/config/vpoint_vmess_freedom.json $(1)/etc/v2ray/
 endef
 
 define Package/v2ray-extra/install
@@ -107,5 +76,4 @@ define Package/v2ray-extra/install
 endef
 
 $(eval $(call BuildPackage,v2ray-core))
-$(eval $(call BuildPackage,v2ray-example))
 $(eval $(call BuildPackage,v2ray-extra))

@@ -24,6 +24,8 @@ function index()
     entry({"admin", "store", "upload"}, post("store_upload"))
     entry({"admin", "store", "check_self_upgrade"}, call("check_self_upgrade"))
     entry({"admin", "store", "do_self_upgrade"}, post("do_self_upgrade"))
+    entry({"admin", "store", "toggle_docker"}, post("toggle_docker"))
+    entry({"admin", "store", "toggle_arch"}, post("toggle_arch"))
 
     for _, action in ipairs({"update", "install", "upgrade", "remove"}) do
         store_api(action, true)
@@ -65,6 +67,18 @@ local function user_id()
     id.version = (fs.readfile("/etc/.app_store.version") or "?"):gsub("[\r\n]", "")
 
     return id
+end
+
+local function user_config() 
+    local uci  = require "luci.model.uci".cursor()
+
+    local data = {
+        hide_docker = uci:get("istore", "istore", "hide_docker") == "1",
+        ignore_arch = uci:get("istore", "istore", "ignore_arch") == "1",
+        super_arch = uci:get("istore", "istore", "super_arch"),
+        channel = uci:get("istore", "istore", "channel")
+    }
+    return data
 end
 
 local function vue_lang()
@@ -131,11 +145,14 @@ function store_index()
     if luci.sys.call("[ -d /ext_overlay ] >/dev/null 2>&1") == 0 then
         features[#features+1] = "sandbox"
     end
-    luci.template.render("store/main", {prefix=luci.dispatcher.build_url(unpack(page_index)),id=user_id(),lang=vue_lang(),features=features})
+    if luci.sys.call("[ -f /www/luci-static/resources/luci.js ] >/dev/null 2>&1") == 0 then
+        features[#features+1] = "luci-js"
+    end
+    luci.template.render("store/main", {prefix=luci.dispatcher.build_url(unpack(page_index)),id=user_id(),lang=vue_lang(),user_config=user_config(),features=features})
 end
 
 function store_dev()
-    luci.template.render("store/main_dev", {prefix=luci.dispatcher.build_url(unpack({"admin", "store", "dev"})),id=user_id(),lang=vue_lang()})
+    luci.template.render("store/main_dev", {prefix=luci.dispatcher.build_url(unpack({"admin", "store", "dev"})),id=user_id(),lang=vue_lang(),user_config=user_config()})
 end
 
 function store_log()
@@ -199,7 +216,7 @@ end
 function store_action(param)
     local metadir = "/usr/lib/opkg/meta"
     local metapkgpre = "app-meta-"
-    local code, out, err, ret, out0, err0
+    local code, out, err, ret
     local fs = require "nixio.fs"
     local ipkg = require "luci.model.ipkg"
     local jsonc = require "luci.jsonc"
@@ -213,7 +230,7 @@ function store_action(param)
         local metadata = fs.readfile(metadir .. "/" .. pkg .. ".json")
 
         if metadata ~= nil then
-            meta = json_parse(metadata)
+            meta = json_parse(metadata) or {}
         end
         meta.installed = false
         local status = ipkg.status(metapkg)
@@ -230,12 +247,29 @@ function store_action(param)
             local pkg
             for pkg in itr do
                 if pkg:match("^.*%.json$") then
-                    local meta = json_parse(fs.readfile(metadir .. "/" .. pkg))
-                    local metapkg = metapkgpre .. meta.name
-                    local status = ipkg.status(metapkg)
-                    if next(status) ~= nil then
-                        meta.time = tonumber(status[metapkg]["Installed-Time"])
-                        data[#data+1] = meta
+                    local metadata = fs.readfile(metadir .. "/" .. pkg)
+                    if metadata ~= nil then
+                        local meta = json_parse(metadata)
+                        if meta == nil then
+                            local i18n = require("luci.i18n")
+                            local name = pkg:gsub("^(.-)%.json$", "%1")
+                            meta = {
+                                name = name,
+                                title = "{ " .. name .. " }",
+                                author = "<UNKNOWN>",
+                                version = "0.0.0",
+                                description = i18n.translate("This package is broken! Please reinstall or uninstall it."),
+                                depends = {},
+                                tags = {"broken"},
+                                broken = true,
+                            }
+                        end
+                        local metapkg = metapkgpre .. meta.name
+                        local status = ipkg.status(metapkg)
+                        if next(status) ~= nil then
+                            meta.time = tonumber(status[metapkg]["Installed-Time"])
+                            data[#data+1] = meta
+                        end
                     end
                 end
             end
@@ -250,13 +284,18 @@ function store_action(param)
             else
                 local meta = json_parse(fs.readfile(metadir .. "/" .. pkg .. ".json"))
                 local pkgs = {}
+                if meta == nil then
+                    meta = {
+                        depends = {},
+                    }
+                end
                 if action == "upgrade" then
                     pkgs = meta.depends
                     table.insert(pkgs, metapkg)
                     code, out, err = _action(myopkg, action, unpack(pkgs))
                 else -- remove
                     for _, dep in ipairs(meta.depends) do
-                        if dep ~= "docker-deps" then
+                        if dep ~= "docker-deps" and dep ~= "luci-js-deps" then
                             pkgs[#pkgs+1] = dep
                         end
                     end
@@ -434,7 +473,7 @@ local function update_local_backup_path(path)
     if path ~= local_backup_path then
         -- set uci config
         x:set("istore","istore","local_backup_path",path)
-        x:commit("istore")        
+        x:commit("istore")
     end
 end
 
@@ -609,7 +648,7 @@ end
 -- post set_local_backup_dir_path
 function set_local_backup_dir_path()
     local path = luci.http.formvalue("path")
-    local success_ret = {code = 200,msg = "Success"}
+    local success_ret = {code = 200, msg = "Success"}
     local error_ret = {code = 500, msg = "Unknown"}
 
     if path ~= "" then
@@ -711,4 +750,22 @@ function get_block_devices()
         luci.http.prepare_content("application/json")
         luci.http.write_json(error_ret)
     end
+end
+
+function toggle_docker()
+    local uci  = require "luci.model.uci".cursor()
+    local hide = luci.http.formvalue("hide")
+    uci:set("istore", "istore", "hide_docker", hide == "true" and "1" or "0")
+    uci:commit("istore")
+    luci.http.prepare_content("application/json")
+    luci.http.write_json({code = 200, msg = "Success"})
+end
+
+function toggle_arch()
+    local uci  = require "luci.model.uci".cursor()
+    local ignore = luci.http.formvalue("ignore")
+    uci:set("istore", "istore", "ignore_arch", ignore == "true" and "1" or "0")
+    uci:commit("istore")
+    luci.http.prepare_content("application/json")
+    luci.http.write_json({code = 200, msg = "Success"})
 end

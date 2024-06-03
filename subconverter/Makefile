@@ -5,21 +5,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=subconverter
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/tindy2013/subconverter.git
-PKG_SOURCE_DATE:=2022-08-31
-PKG_SOURCE_VERSION:=35d296553bff0e7a641febfbff3320ae750469c6
-PKG_MIRROR_HASH:=f4ada87bf71e2347b95e632beca5aa114ee7a86865956806307a4c09495bdf33
-PKG_VERSION:=0.7.2-$(call version_abbrev,$(PKG_SOURCE_VERSION))
+PKG_SOURCE_DATE:=2023-10-16
+PKG_SOURCE_VERSION:=80c2a968d1891d9234e2ce13918ca248fc873355
+PKG_MIRROR_HASH:=111f6edd155390464c8526d5609d41f84fc365739757b9a634bb9d931bfbb97c
+PKG_VERSION:=0.8.1-$(call version_abbrev,$(PKG_SOURCE_VERSION))
 
 PKG_LICENSE:=GPL-3.0
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Tianling Shen <cnsztl@immortalwrt.org>
 
 PKG_BUILD_DEPENDS:=jpcre2 rapidjson toml11
-PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections lto
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -37,8 +37,7 @@ endef
 CMAKE_OPTIONS+= -DCMAKE_EXE_LINKER_FLAGS="-latomic"
 
 TARGET_CXXFLAGS := $(filter-out -O%,$(TARGET_CXXFLAGS)) -O3
-TARGET_CXXFLAGS += -Wall -Wextra -ffunction-sections -fdata-sections -flto
-TARGET_LDFLAGS += -Wl,--gc-sections -flto
+TARGET_CXXFLAGS += -Wall -Wextra
 
 define Package/subconverter/install
 	$(INSTALL_DIR) $(1)/usr/bin

@@ -74,6 +74,9 @@ msgstr "上传文件列表中有内核文件，你可以升级内核。"
 msgid "There are openwrt firmware file in the upload directory, and you can update the openwrt."
 msgstr "上传文件列表中有 OpenWrt 固件文件，你可以升级 OpenWrt。"
 
+msgid "Update plugins first, then update the kernel or firmware."
+msgstr "首先更新插件，再更新内核或固件。"
+
 msgid "After uploading [Firmware], [Kernel], [IPK] or [Backup Config], the operation buttons will be displayed."
 msgstr "当上传 [固件文件]，[内核文件]，[IPK文件]，[配置文件] 后，将自动显示相关操作按钮。"
 
@@ -98,95 +101,14 @@ msgstr "选择设备型号："
 msgid "Select List"
 msgstr "选择列表"
 
-msgid "[s905d] Phicomm N1"
-msgstr "[s905d] 斐讯-N1"
-
-msgid "[s905d] Phicomm N1 (DMA thresh)"
-msgstr "[s905d] 斐讯-N1 (流控)"
-
-msgid "[s905x] HG680P"
-msgstr "[s905x] 烽火HG680"
-
-msgid "[s905x] B860H"
-msgstr "[s905x] 中兴B860H"
-
-msgid "[s905w] X96-Mini & TX3-Mini"
-msgstr "[s905w] X96-Mini & TX3-Mini"
-
-msgid "[s912] Octopus Planet"
-msgstr "[s912] 章鱼星球"
-
-msgid "[s905x2] X96 Max 4G"
-msgstr "[s905x2] X96 Max 4G"
-
-msgid "[s905x2] X96 Max 2G"
-msgstr "[s905x2] X96 Max 2G"
-
-msgid "[s922x] Belink GT-King"
-msgstr "[s922x] Belink GT-King"
-
-msgid "[s922x] Belink GT-King Pro"
-msgstr "[s922x] Belink GT-King Pro"
-
-msgid "[s922x] Belink GT-King Pro H"
-msgstr "[s922x] Belink GT-King Pro H"
-
-msgid "[s922x] Belink GT-King Pro Rev_A"
-msgstr "[s922x] Belink GT-King Pro Rev_A"
-
-msgid "[s922x] Hardkernel ODROID N2"
-msgstr "[s922x] Hardkernel ODROID N2"
-
-msgid "[s922x] UGOOS AM6 Plus"
-msgstr "[s922x] UGOOS AM6 Plus"
-
-msgid "[a311d] Khadas VIM3"
-msgstr "[a311d] Khadas VIM3"
-
-msgid "[s905x3] X96 Max+"
-msgstr "[s905x3] X96 Max+"
-
-msgid "[s905x3] X96 Max+ (OverClock@2208Mhz)"
-msgstr "[s905x3] X96 Max+ (超频@2208Mhz)"
-
-msgid "[s905x3] HK1 Box"
-msgstr "[s905x3] HK1 Box"
-
-msgid "[s905x3] HK1 Box (OverClock@2208Mhz)"
-msgstr "[s905x3] HK1 Box (超频@2208Mhz)"
-
-msgid "[s905x3] H96 Max X3"
-msgstr "[s905x3] H96 Max X3"
-
-msgid "[s905x3] H96 Max X3 (OverClock@2208Mhz)"
-msgstr "[s905x3] H96 Max X3 (超频@2208Mhz)"
-
-msgid "[s905x3] Ugoos X3"
-msgstr "[s905x3] Ugoos X3"
-
-msgid "[s905x3] Ugoos X3 (OverClock@2208Mhz)"
-msgstr "[s905x3] Ugoos X3 (超频@2208Mhz)"
-
-msgid "[s905x3] TX3 BZ"
-msgstr "[s905x3] TX3 百兆"
-
-msgid "[s905x3] TX3 BZ (OverClock@2208Mhz)"
-msgstr "[s905x3] TX3 百兆 (超频@2208Mhz)"
-
-msgid "[s905x3] TX3 QZ"
-msgstr "[s905x3] TX3 千兆"
-
-msgid "[s905x3] TX3 QZ (OverClock@2208Mhz)"
-msgstr "[s905x3] TX3 千兆 (超频@2208Mhz)"
-
-msgid "Or enter the dtb file name:"
-msgstr "或者输入自定义 dtb 文件名："
-
 msgid "Enter the dtb file name"
 msgstr "输入自定义 dtb 文件名"
 
-msgid "Use custom dtb file:"
-msgstr "使用自定义 dtb 文件："
+msgid "Enter the soc name:"
+msgstr "输入自定义 soc 名称："
+
+msgid "Enter the uboot_overload name:"
+msgstr "输入自定义 uboot_overload 名称："
 
 msgid "Invalid value."
 msgstr "无效值"
@@ -251,35 +173,50 @@ msgstr "支持将 OpenWrt 系统写入 EMMC、升级固件与内核，备份与�
 msgid "Supported Boxes:"
 msgstr "支持的盒子："
 
-msgid "Amlogic s922x --- [ Belink, Belink-Pro, Ugoos-AM6-Plus, ODROID-N2, Khadas VIM3(a311d) ]"
-msgstr "晶晨 s922x --- [ Belink, Belink-Pro, Ugoos-AM6-Plus, ODROID-N2, Khadas VIM3(a311d) ]"
+msgid "Amlogic s922x --- [ Beelink, Beelink-Pro, Ugoos-AM6-Plus, ODROID-N2, Khadas VIM3(a311d) ]"
+msgstr "晶晨 s922x --- [ Beelink, Beelink-Pro, Ugoos-AM6-Plus, ODROID-N2, Khadas VIM3(a311d) ]"
 
 msgid "Amlogic s905x3 -- [ X96-Max+, HK1-Box, H96-Max-X3, Ugoos-X3, TX3, X96-Air, A95XF3-Air ]"
 msgstr "晶晨 s905x3 -- [ X96-Max+, HK1-Box, H96-Max-X3, Ugoos-X3, TX3, X96-Air, A95XF3-Air ]"
 
-msgid "Amlogic s905x2 -- [ X96Max-4G, X96Max-2G ]"
-msgstr "晶晨 s905x2 -- [ X96Max-4G, X96Max-2G ]"
-
-msgid "Amlogic s905x --- [ HG680P, B860H, TBee, MECOOL-KI-Pro ]"
-msgstr "晶晨 s905x --- [ 烽火HG680, 中兴B860H, TBee, MECOOL-KI-Pro ]"
-
-msgid "Amlogic s905w --- [ X96-Mini, TX3-Mini ]"
-msgstr "晶晨 s905w --- [ X96-Mini, TX3-Mini ]"
+msgid "Amlogic s905x2 -- [ X96Max-4G, X96Max-2G, MECOOL-KM3-4G, Tanix-Tx5-Max, A95X-F2 ]"
+msgstr "晶晨 s905x2 -- [ X96Max-4G, X96Max-2G, MECOOL-KM3-4G, Tanix-Tx5-Max, A95X-F2 ]"
 
 msgid "Amlogic s912 ---- [ H96-Pro-Plus, Octopus-Planet, A1, A2, Z6-Plus, TX92, X92, TX8-MAX, TX9-Pro ]"
 msgstr "晶晨 s912 ---- [ H96-Pro-Plus, 章鱼星球, A1, A2, Z6-Plus, TX92, X92, TX8-MAX, TX9-Pro ]"
 
-msgid "Amlogic s905d --- [ Phicomm-N1 ]"
-msgstr "晶晨 s905d --- [ 斐讯-N1 ]"
+msgid "Amlogic s905x --- [ HG680P, B860H, TBee, T95, TX9, XiaoMI-3S, X96 ]"
+msgstr "晶晨 s905x --- [ 烽火HG680, 中兴B860H, TBee, T95, TX9, XiaoMI-3S, X96 ]"
 
-msgid "Amlogic Other --- [ Optional DTB ]"
-msgstr "晶晨其他 ----- [ 自定义 DTB 文件 ]"
+msgid "Amlogic s905w --- [ X96-Mini, TX3-Mini, W95, X96W/FunTV, MXQ-Pro-4K ]"
+msgstr "晶晨 s905w --- [ X96-Mini, TX3-Mini, W95, X96W/FunTV, MXQ-Pro-4K ]"
+
+msgid "Amlogic s905d --- [ Phicomm-N1, MECOOL-KI-Pro, SML-5442TW ]"
+msgstr "晶晨 s905d --- [ 斐讯-N1, MECOOL-KI-Pro, SML-5442TW ]"
+
+msgid "Amlogic s905l --- [ UNT402A, M201-S ]"
+msgstr "晶晨 s905l --- [ UNT402A, M201-S ]"
+
+msgid "Amlogic s905l2 -- [ MGV2000, MGV3000, Wojia-TV-IPBS9505, M301A, E900v21E ]"
+msgstr "晶晨 s905l2 -- [ MGV2000, MGV3000, Wojia-TV-IPBS9505, M301A, E900v21E ]"
+
+msgid "Amlogic s905l3 -- [ CM211-1, CM311-1, HG680-LC, M401A, UNT400G1, UNT402A, ZXV10-BV310 ]"
+msgstr "晶晨 s905l3 -- [ CM211-1, CM311-1, HG680-LC, M401A, UNT400G1, UNT402A, ZXV10-BV310 ]"
+
+msgid "Amlogic s905l3a - [ E900V22C/D, CM311-1a-YST, M401A, M411A, UNT403A, UNT413A, IP112H ]"
+msgstr "晶晨 s905l3a - [ E900V22C/D, CM311-1a-YST, M401A, M411A, UNT403A, UNT413A, IP112H ]"
+
+msgid "Amlogic s905l3b - [ CM211-1, CM311-1, E900V22D, E900V21E, E900V22E, M302A/M304A ]"
+msgstr "晶晨 s905l3b - [ CM211-1, CM311-1, E900V22D, E900V21E, E900V22E, M302A/M304A ]"
+
+msgid "Amlogic s905 ---- [ Beelink-Mini-MX-2G, Sunvell-T95M, MXQ-Pro+4K, SumaVision-Q5 ]"
+msgstr "晶晨 s905 ---- [ Beelink-Mini-MX-2G, Sunvell-T95M, MXQ-Pro+4K, SumaVision-Q5 ]"
 
 msgid "Allwinner H6 ---- [ V-Plus Cloud ]"
 msgstr "全志 H6 ------ [ 微加云 ]"
 
-msgid "Rockchip -------- [ BeikeYun, Chainedbox L1 Pro, FastRhino R66S/R68S, Radxa 5B/E25, H68k ]"
-msgstr "瑞芯微 ------- [ 贝壳云, 我家云, 电犀牛R66S/R68S, 瑞莎5B/E25, 恒领H68k ]"
+msgid "Rockchip -------- [ BeikeYun, L1-Pro, FastRhino R66S/R68S, Radxa 5B/E25 ]"
+msgstr "瑞芯微 ------- [ 贝壳云, 我家云, 电犀牛R66S/R68S, 瑞莎5B/E25 ]"
 
 msgid "Used in KVM ----- [ Can be used in KVM virtual machine of Armbian system. ]"
 msgstr "KVM 中使用 --- [ 可以在 Armbian 系统的 KVM 虚拟机中使用。 ]"
@@ -322,6 +259,24 @@ msgstr "下载备份"
 
 msgid "Backup OpenWrt config (openwrt_config.tar.gz). Use this file to restore the config in [Manually Upload Update]."
 msgstr "备份当前 OpenWrt 的相关配置信息(openwrt_config.tar.gz)。使用此文件可在 [手动上传更新] 中恢复配置。"
+
+msgid "Edit List:"
+msgstr "编辑列表："
+
+msgid "Open List"
+msgstr "打开列表"
+
+msgid "Backup Configuration - Custom List"
+msgstr "备份配置 - 自定义列表"
+
+msgid "Write one configuration item per line, and directories should end with a /."
+msgstr "每行写一个配置项，目录需要以/结尾。"
+
+msgid "Restore Backup:"
+msgstr "恢复备份："
+
+msgid "Upload Backup"
+msgstr "上传备份"
 
 msgid "Restore"
 msgstr "恢复"
@@ -410,8 +365,8 @@ msgstr "配置来源"
 msgid "You can customize the github.com download repository of OpenWrt files and kernels in [Online Download Update]."
 msgstr "您可以自定义 [在线下载和更新] 中 OpenWrt 固件和内核的 github.com 下载仓库。"
 
-msgid "Tips: The amlogic SoC (E.g: s905d) and mainline version of the kernel (E.g: 5.10) will automatically match the current openwrt firmware."
-msgstr "提示：OpenWrt 固件的型号（如：s905d）和内核的主线版本（如：5.10）将根据当前固件自动适配。"
+msgid "Tip: The same files as the current OpenWrt system's BOARD (such as rock5b) and kernel (such as 5.10) will be downloaded."
+msgstr "提示：将下载与当前 OpenWrt 系统的 BOARD（如：rock5b）和内核（如：5.10）相同的文件。"
 
 msgid "Download repository of OpenWrt:"
 msgstr "OpenWrt 固件的下载仓库："
@@ -494,14 +449,26 @@ msgstr "当前版本"
 msgid "Latest Version"
 msgstr "最新版本"
 
+msgid "Rescue Kernel"
+msgstr "救援内核"
+
+msgid "When a kernel update fails and causes the OpenWrt system to be unbootable, the kernel can be restored by mutual recovery from eMMC/NVMe/sdX."
+msgstr "当内核更新失败造成 OpenWrt 系统无法启动时，可以从 eMMC/NVME/sdX 相互恢复内核。"
+
+msgid "Rescue the original system kernel"
+msgstr "救援原系统内核"
+
+msgid "Rescuing..."
+msgstr "正在救援..."
+
 msgid "Current Device:"
 msgstr "当前设备："
 
 msgid "If the current device shows (Unknown device), please report to github."
 msgstr "如果当前设备显示无法识别（Unknown device），请到 github 反馈。"
 
-msgid "The OpenWrt and kernel will be downloaded and updated according to the options filled in [Plugin Settings]."
-msgstr "将根据在 [插件设置] 里面填写的选项进行 OpenWrt 固件和内核的下载与更新。"
+msgid "Update plugins first, then update the kernel or firmware. More options can be configured in [Plugin Settings]."
+msgstr "首先更新插件，再更新内核或固件。更多选项可以在插件设置中配置。"
 
 msgid "Collecting data..."
 msgstr "正在收集数据…"
