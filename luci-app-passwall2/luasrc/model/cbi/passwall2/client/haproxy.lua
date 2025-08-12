@@ -1,8 +1,7 @@
 local api = require "luci.passwall2.api"
 local appname = api.appname
-local sys = api.sys
-local net = require "luci.model.network".init()
 local datatypes = api.datatypes
+local net = require "luci.model.network".init()
 
 local nodes_table = {}
 for k, e in ipairs(api.get_valid_nodes()) do
@@ -19,7 +18,7 @@ m = Map(appname)
 api.set_apply_on_parse(m)
 
 -- [[ Haproxy Settings ]]--
-s = m:section(TypedSection, "global_haproxy")
+s = m:section(TypedSection, "global_haproxy", translate("Basic Settings"))
 s.anonymous = true
 
 s:append(Template(appname .. "/haproxy/status"))
@@ -29,21 +28,30 @@ o = s:option(Flag, "balancing_enable", translate("Enable Load Balancing"))
 o.rmempty = false
 o.default = false
 
+---- Console Login Auth
+o = s:option(Flag, "console_auth", translate("Console Login Auth"))
+o.default = false
+o:depends("balancing_enable", true)
+
 ---- Console Username
 o = s:option(Value, "console_user", translate("Console Username"))
 o.default = ""
-o:depends("balancing_enable", true)
+o:depends("console_auth", true)
 
 ---- Console Password
 o = s:option(Value, "console_password", translate("Console Password"))
 o.password = true
 o.default = ""
-o:depends("balancing_enable", true)
+o:depends("console_auth", true)
 
 ---- Console Port
 o = s:option(Value, "console_port", translate("Console Port"), translate(
 				 "In the browser input routing IP plus port access, such as:192.168.1.1:1188"))
 o.default = "1188"
+o:depends("balancing_enable", true)
+
+o = s:option(Flag, "bind_local", translate("Haproxy Port") .. " " .. translate("Bind Local"), translate("When selected, it can only be accessed localhost."))
+o.default = "0"
 o:depends("balancing_enable", true)
 
 ---- Health Check Type
@@ -52,6 +60,18 @@ o.default = "passwall_logic"
 o:value("tcp", "TCP")
 o:value("passwall_logic", translate("URL Test") .. string.format("(passwall %s)", translate("Inner implement")))
 o:depends("balancing_enable", true)
+
+---- Passwall Inner implement Probe URL
+o = s:option(Value, "health_probe_url", translate("Probe URL"))
+o.default = "https://www.google.com/generate_204"
+o:value("https://cp.cloudflare.com/", "Cloudflare")
+o:value("https://www.gstatic.com/generate_204", "Gstatic")
+o:value("https://www.google.com/generate_204", "Google")
+o:value("https://www.youtube.com/generate_204", "YouTube")
+o:value("https://connect.rom.miui.com/generate_204", "MIUI (CN)")
+o:value("https://connectivitycheck.platform.hicloud.com/generate_204", "HiCloud (CN)")
+o.description = translate("The URL used to detect the connection status.")
+o:depends("health_check_type", "passwall_logic")
 
 ---- Health Check Inter
 o = s:option(Value, "health_check_inter", translate("Health Check Inter"), translate("Units:seconds"))
@@ -66,7 +86,7 @@ end
 o:depends("health_check_type", "passwall_logic")
 
 -- [[ Balancing Settings ]]--
-s = m:section(TypedSection, "haproxy_config", "",
+s = m:section(TypedSection, "haproxy_config", translate("Node List"),
 			  "<font color='red'>" ..
 			  translate("Add a node, Export Of Multi WAN Only support Multi Wan. Load specific gravity range 1-256. Multiple primary servers can be load balanced, standby will only be enabled when the primary server is offline! Multiple groups can be set, Haproxy port same one for each group.") ..
 			  "\n" .. translate("Note that the node configuration parameters for load balancing must be consistent when use TCP health check type, otherwise it cannot be used normally!") ..

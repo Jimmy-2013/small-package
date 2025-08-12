@@ -228,8 +228,8 @@ msgid "Max Retries"
 msgstr "最大重试次数"
 
 #: natmap.js:287 natmap.js:472 natmap.js:698
-msgid "max retries,default 0 means execute only once"
-msgstr "最大重试次数，默认 0 表示仅执行一次调用"
+msgid "The maximum number of retries, the default is 10. 0 means unlimited retries, use with caution."
+msgstr "最大重试次数，默认为 10。 0表示无限重试次数，谨慎使用。"
 
 #: natmap.js:78
 msgid "Name"
@@ -300,8 +300,8 @@ msgid "Retry Interval"
 msgstr "重试间隔时间"
 
 #: natmap.js:298 natmap.js:483 natmap.js:709
-msgid "Retry Interval, unit is seconds, default 0 is 3 seconds"
-msgstr "单次重试间隔时间，单位是秒，默认 0 表示 3秒"
+msgid "The retry interval is in seconds. The default value is 3 seconds. 0 means the interval is 0 seconds."
+msgstr "重试间隔以秒为单位。默认值为 3 秒。0 表示间隔为 0 秒。"
 
 #: natmap.js:644
 msgid "RPC URL"
@@ -413,3 +413,33 @@ msgstr "cloudflare ddns 域名，例如：www.example.com。"
 
 msgid "<br />before use it, must add dns record in cloudflare DNS."
 msgstr "<br />使用之前，必须在 cloudflare dns 中添加对应dns记录。"
+
+msgid "dns record ttl"
+msgstr "dns 记录 ttl"
+
+msgid "ttl of dns record, use seconds as unit, default 60."
+msgstr "dns记录的ttl值，单位为秒，默认为 60。"
+
+msgid "HTTPS record Priority"
+msgstr "HTTPS 记录优先级"
+
+msgid "Priority of HTTPS record, default 1."
+msgstr "HTTPS 记录优先级，默认为 1 。"
+
+msgid "SRV record Target Domain"
+msgstr "SRV 记录的目标域名"
+
+msgid "Target domain of SRV record. eg: www.example.com."
+msgstr "SRV 记录的目标域名。例如，www.example.com 。"
+
+msgid "SRV record Priority"
+msgstr "SRV 记录优先级"
+
+msgid "Priority of SRV record, default 1."
+msgstr "SRV 记录优先级，默认为 1 。"
+
+msgid "SRV record Weight"
+msgstr "SRV 记录权重"
+
+msgid "Weight of SRV record, default 1."
+msgstr "SRV 记录权重，默认为 1 。"

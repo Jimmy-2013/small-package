@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=dockerd
-PKG_VERSION:=26.1.3
+PKG_VERSION:=28.3.3
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
@@ -10,14 +10,13 @@ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_GIT_URL:=github.com/moby/moby
 PKG_GIT_REF:=v$(PKG_VERSION)
 PKG_SOURCE_URL:=https://codeload.$(PKG_GIT_URL)/tar.gz/$(PKG_GIT_REF)?
-PKG_HASH:=2f51e2dd1c122e364510c95f66e94b7fff9d5199545484e92c2e52b0efcdc2e6
-PKG_GIT_SHORT_COMMIT:=8b79278 # SHA1 used within the docker executables
+PKG_HASH:=3727c8963ab4bcff12291e99e4d4a6b9a29ace5236fd245717bbff648f15f8cd
+PKG_GIT_SHORT_COMMIT:=c710b88 # SHA1 used within the docker executables
 
 PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
 
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
-PKG_USE_MIPS16:=0
 PKG_BUILD_FLAGS:=no-mips16
 
 GO_PKG:=github.com/docker/docker
@@ -46,9 +45,9 @@ define Package/dockerd
     +kmod-ipt-physdev \
     +kmod-nf-ipvs \
     +kmod-veth \
-    +libnetwork \
     +tini \
-    +uci-firewall
+    +uci-firewall \
+    @!(mips||mips64||mipsel)
   USERID:=docker:docker
   MENU:=1
 endef
@@ -61,7 +60,6 @@ define Package/dockerd/description
 The Docker CE Engine.
 endef
 
-GO_PKG_BUILD_VARS += GO111MODULE=auto
 TAR_OPTIONS:=--strip-components 1 $(TAR_OPTIONS)
 TAR_CMD=$(HOST_TAR) -C $(1) $(TAR_OPTIONS)
 TARGET_LDFLAGS += $(if $(CONFIG_USE_GLIBC),-lc -lgcc_eh)
@@ -97,7 +95,6 @@ define Build/Prepare
 
 	# Verify dependencies are the vendored version
 	$(call EnsureVendoredVersion,../containerd/Makefile,containerd.installer)
-	$(call EnsureVendoredCommit,../libnetwork/Makefile,proxy.installer)
 	$(call EnsureVendoredVersion,../runc/Makefile,runc.installer)
 	$(call EnsureVendoredVersion,../tini/Makefile,tini.installer)
 
@@ -143,6 +140,7 @@ endef
 define Package/dockerd/install
 	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bundles/binary-daemon/dockerd $(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bundles/binary-daemon/docker-proxy $(1)/usr/bin/
 
 	$(INSTALL_DIR) $(1)/opt/docker/
 

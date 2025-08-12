@@ -37,6 +37,20 @@ error_msg() {
     exit 1
 }
 
+# Get the partition name of the root file system
+get_root_partition_name() {
+    local paths=("/" "/overlay" "/rom")
+    local partition_name
+
+    for path in "${paths[@]}"; do
+        partition_name=$(df "${path}" | awk 'NR==2 {print $1}' | awk -F '/' '{print $3}')
+        [[ -n "${partition_name}" ]] && break
+    done
+
+    [[ -z "${partition_name}" ]] && error_msg "Cannot find the root partition!"
+    echo "${partition_name}"
+}
+
 # Get kernel TEXT_OFFSET, For u-boot.ext and u-boot.emmc
 get_textoffset() {
     boot_tgz_file="${1}"
@@ -56,12 +70,13 @@ init_var() {
     [[ "${1}" == "yes" ]] && AUTO_MAINLINE_UBOOT="yes"
 
     # Check dependencies
-    [[ -n "$(which tar)" ]] || error_msg "Missing [ tar ] in OpenWrt firmware, unable to update kernel"
+    [[ -n "$(busybox which tar)" ]] || error_msg "Missing [ tar ] in OpenWrt firmware, unable to update kernel"
 
     # Check release file
     if [[ -s "${release_file}" ]]; then
         source "${release_file}"
         PLATFORM="${PLATFORM}"
+        MODEL_ID="${MODEL_ID}"
         UBOOT_OVERLOAD="${UBOOT_OVERLOAD}"
         MAINLINE_UBOOT="${MAINLINE_UBOOT}"
         ANDROID_UBOOT="${ANDROID_UBOOT}"
@@ -82,23 +97,19 @@ init_var() {
     [[ -n "${MYBOOT_VMLINUZ}" ]] || error_msg "Failed to get Image name: [ ${MYBOOT_VMLINUZ} ]"
 
     # Find the partition where root is located
-    ROOT_PTNAME="$(df / | tail -n1 | awk '{print $1}' | awk -F '/' '{print $3}')"
-    if [[ -z "${ROOT_PTNAME}" ]]; then
-        ROOT_PTNAME="$(df /overlay | tail -n1 | awk '{print $1}' | awk -F '/' '{print $3}')"
-    fi
-    [[ -n "${ROOT_PTNAME}" ]] || error_msg "Cannot find the partition corresponding to the root file system!"
+    ROOT_PTNAME="$(get_root_partition_name)"
 
     # Find the disk where the partition is located, only supports mmcblk?p? sd?? hd?? vd?? and other formats
     case "${ROOT_PTNAME}" in
-    mmcblk?p[1-4])
+    mmcblk?p[1-9])
         EMMC_NAME="$(echo ${ROOT_PTNAME} | awk '{print substr($1, 1, length($1)-2)}')"
         PARTITION_NAME="p"
         ;;
-    [hsv]d[a-z][1-4])
+    [hsv]d[a-z][1-9])
         EMMC_NAME="$(echo ${ROOT_PTNAME} | awk '{print substr($1, 1, length($1)-1)}')"
         PARTITION_NAME=""
         ;;
-    nvme?n?p[1-4])
+    nvme?n?p[1-9])
         EMMC_NAME="$(echo ${ROOT_PTNAME} | awk '{print substr($1, 1, length($1)-2)}')"
         PARTITION_NAME="p"
         ;;
@@ -148,7 +159,7 @@ check_kernel() {
     sha256sums_file="sha256sums"
     sha256sums_check="1"
     [[ -s "${sha256sums_file}" && -n "$(cat ${sha256sums_file})" ]] || sha256sums_check="0"
-    [[ -n "$(which sha256sum)" ]] || sha256sums_check="0"
+    [[ -n "$(busybox which sha256sum)" ]] || sha256sums_check="0"
     [[ "${sha256sums_check}" -eq "1" ]] && echo -e "Enable sha256sum checking..."
 
     # Loop check file
@@ -276,6 +287,11 @@ update_kernel() {
             ln -sf uInitrd-${kernel_name} uInitrd
             ln -sf vmlinuz-${kernel_name} ${MYBOOT_VMLINUZ}
         fi
+
+        # wxy-oect: MODEL_ID numbers r304 and r306, require special handling of uInitrd
+        [[ "${MODEL_ID}" == "r304" || "${MODEL_ID}" == "r306" ]] && {
+            rm -f uInitrd && ln -sf initrd.img-${kernel_name} uInitrd
+        }
     )
 
     echo -e "(1/3) Unpacking [ boot-${kernel_name}.tar.gz ] done."

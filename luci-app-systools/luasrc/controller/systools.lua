@@ -87,12 +87,34 @@ function main_container(data, extra)
           required = true,
           title = "可执行操作",
           type = "string",
-          enum = {"turn_off_ipv6", "full_ipv6", "half_ipv6", "reset_rom_pkgs", "qb_reset_password", "disk_power_mode", "speedtest", "openssl-aes256gcm", "openssl-chacha20-poly1305", "istore-reinstall", "disable-wandrop"},
+          enum = {
+            "select_none",
+            "ipv6_pd",
+            "ipv6_relay",
+            "ipv6_nat",
+            "ipv6_half",
+            "ipv6_off",
+            "disable-planb", 
+            "reset_rom_pkgs", 
+			"reinstall_incompatible_kmods",
+            "istore-reinstall", 
+            "qb_reset_password", 
+            "disk_power_mode", 
+            "speedtest", 
+            "openssl-aes256gcm",
+            "openssl-chacha20-poly1305", 
+          },
           enumNames = {
+            lng.translate("Select"), 
+            lng.translate("Enable IPv6 (PD mode)"),
+            lng.translate("Enable IPv6 (relay mode)"),
+            lng.translate("Enable IPv6 (NAT mode)"),
+            lng.translate("Enable IPv6 half (Only Router)"),
             lng.translate("Turn off IPv6"), 
-            lng.translate("Full IPv6"),
-            lng.translate("Half IPv6 (Only Router)"),
+            lng.translate("Disable LAN port keepalive"),
             lng.translate("Reset rom pkgs"), 
+			lng.translate("Reinstall incompatible kernel modules"),
+            lng.translate("Reinstall iStore"), 
             lng.translate("Reset qBittorrent Password"),
             lng.translate("HDD hibernation Status"),
             lng.translate("Run SpeedTest"),
@@ -152,7 +174,7 @@ function get_data()
       extra["speedTestServers"] = get_speedtest_servers()
     end
   else
-    tool = "turn_off_ipv6"
+    tool = "select_none"
   end
   local data = {
     tool = tool,
@@ -185,9 +207,9 @@ end
 function install_execute_systools(req)
   local cmd
   if req["tool"] == "speedtest" then
-    cmd = string.format("/usr/libexec/istorec/systools.sh %s %s", req["tool"], req["speedTestServer"])
+    cmd = string.format("/usr/libexec/systools.sh %s %s", req["tool"], req["speedTestServer"])
   else
-    cmd = string.format("/usr/libexec/istorec/systools.sh %s", req["tool"])
+    cmd = string.format("/usr/libexec/systools.sh %s", req["tool"])
   end
   cmd = "/etc/init.d/tasks task_add systools " .. luci.util.shellquote(cmd)
   os.execute(cmd .. " >/dev/null 2>&1")

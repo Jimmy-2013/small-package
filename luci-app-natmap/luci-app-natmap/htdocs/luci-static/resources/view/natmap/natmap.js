@@ -242,7 +242,7 @@ return view.extend({
       "forward_ikuai_password",
       _("Ikuai Password")
     );
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("forward_mode", "ikuai");
 
@@ -286,11 +286,12 @@ return view.extend({
       form.Value,
       "forward_advanced_max_retries",
       _("Max Retries"),
-      _("max retries,default 0 means execute only once")
+      _("The maximum number of retries, the default is 10. 0 means unlimited retries, use with caution.")
     );
     o.datatype = "uinteger";
-    o.default = 0;
+    o.default = 10;
     o.modalonly = true;
+    o.rmempty = false;
     o.depends("forward_advanced_enable", "1");
 
     o = s.taboption(
@@ -298,11 +299,12 @@ return view.extend({
       form.Value,
       "forward_advanced_sleep_time",
       _("Retry Interval"),
-      _("Retry Interval, unit is seconds, default 0 is 3 seconds")
+      _("The retry interval is in seconds. The default value is 3 seconds. 0 means the interval is 0 seconds.")
     );
     o.datatype = "uinteger";
-    o.default = 0;
+    o.default = 3;
     o.modalonly = true;
+    o.rmempty = false;
     o.depends("forward_advanced_enable", "1");
 
     // **********************************************************************
@@ -356,7 +358,7 @@ return view.extend({
       _("Click here") +
       "</a>" +
       _(".<br />Send a message to the created bot to initiate a conversation.");
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("notify_mode", "telegram_bot");
 
@@ -382,7 +384,7 @@ return view.extend({
       ' <a href="http://www.pushplus.plus/" target="_blank">' +
       _("Click here") +
       "</a>";
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("notify_mode", "pushplus");
 
@@ -401,7 +403,7 @@ return view.extend({
       _(
         ".<br />Since the asynchronous push queue is used, only whether the put into the queue is successful is detected."
       );
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("notify_mode", "serverchan");
 
@@ -446,7 +448,7 @@ return view.extend({
       "notify_gotify_token",
       _("Gotify Token")
     );
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("notify_mode", "gotify");
 
@@ -480,11 +482,12 @@ return view.extend({
       form.Value,
       "notify_advanced_max_retries",
       _("Max Retries"),
-      _("max retries,default 0 means execute only once")
+      _("The maximum number of retries, the default is 10. 0 means unlimited retries, use with caution.")
     );
     o.datatype = "uinteger";
-    o.default = 0;
+    o.default = 10;
     o.modalonly = true;
+    o.rmempty = false;
     o.depends("notify_advanced_enable", "1");
 
     o = s.taboption(
@@ -492,11 +495,12 @@ return view.extend({
       form.Value,
       "notify_advanced_sleep_time",
       _("Retry Interval"),
-      _("Retry Interval, unit is seconds, default 0 is 3 seconds")
+      _("The retry interval is in seconds. The default value is 3 seconds. 0 means the interval is 0 seconds.")
     );
     o.datatype = "uinteger";
-    o.default = 0;
+    o.default = 3;
     o.modalonly = true;
+    o.rmempty = false;
     o.depends("notify_advanced_enable", "1");
 
     // **********************************************************************
@@ -524,7 +528,7 @@ return view.extend({
       "link_cloudflare_token",
       _("Cloudflare Token")
     );
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("link_mode", "cloudflare_origin_rule");
     o.depends("link_mode", "cloudflare_redirect_rule");
@@ -571,6 +575,67 @@ return view.extend({
     o.datatype = "host";
     o.modalonly = true;
     o.depends("link_mode", "cloudflare_ddns");
+
+    o = s.taboption(
+      "link",
+      form.Value,
+      "link_cloudflare_ddns_ttl",
+      _("dns record ttl")
+    );
+    o.description = _("ttl of dns record, use seconds as unit, default 60.");
+    o.datatype = "uinteger";
+    o.default = 60;
+    o.modalonly = true;
+    o.depends("link_mode", "cloudflare_ddns");
+
+    // link_cloudflare_ddns_https_type
+    o = s.taboption(
+      "link",
+      form.Value,
+      "link_cloudflare_ddns_https_priority",
+      _("HTTPS record Priority")
+    );
+    o.description = _("Priority of HTTPS record, default 1.");
+    o.datatype = "uinteger";
+    o.default = 1;
+    o.modalonly = true;
+    o.depends("link_cloudflare_ddns_type", "HTTPS");
+
+    // link_cloudflare_ddns_srv_type
+    o = s.taboption(
+      "link",
+      form.Value,
+      "link_cloudflare_ddns_srv_target_domain",
+      _("SRV record Target Domain")
+    );
+    o.description = _("Target domain of SRV record. eg: www.example.com.");
+    o.datatype = "host";
+    o.modalonly = true;
+    o.depends("link_cloudflare_ddns_type", "SRV");
+
+    o = s.taboption(
+      "link",
+      form.Value,
+      "link_cloudflare_ddns_srv_priority",
+      _("SRV record Priority")
+    );
+    o.description = _("Priority of SRV record, default 1.");
+    o.datatype = "uinteger";
+    o.default = 1;
+    o.modalonly = true;
+    o.depends("link_cloudflare_ddns_type", "SRV");
+
+    o = s.taboption(
+      "link",
+      form.Value,
+      "link_cloudflare_ddns_srv_weight",
+      _("SRV record Weight")
+    );
+    o.description = _("Weight of SRV record, default 1.");
+    o.datatype = "uinteger";
+    o.default = 1;
+    o.modalonly = true;
+    o.depends("link_cloudflare_ddns_type", "SRV");
 
     // link_cloudflare_origin_rule
     o = s.taboption(
@@ -625,7 +690,7 @@ return view.extend({
     o.depends("link_mode", "emby");
 
     o = s.taboption("link", form.Value, "link_emby_api_key", _("API Key"));
-    o.datatype = "host";
+    o.password = true;
     o.modalonly = true;
     o.depends("link_mode", "emby");
 
@@ -670,7 +735,7 @@ return view.extend({
     o.depends("link_mode", "qbittorrent");
 
     o = s.taboption("link", form.Value, "link_qb_password", _("Password"));
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("link_mode", "qbittorrent");
 
@@ -709,7 +774,7 @@ return view.extend({
     o.depends("link_mode", "transmission");
 
     o = s.taboption("link", form.Value, "link_tr_password", _("Password"));
-    o.datatype = "string";
+    o.password = true;
     o.modalonly = true;
     o.depends("link_mode", "transmission");
 
@@ -749,11 +814,12 @@ return view.extend({
       form.Value,
       "link_advanced_max_retries",
       _("Max Retries"),
-      _("max retries,default 0 means execute only once")
+      _("The maximum number of retries, the default is 10. 0 means unlimited retries, use with caution.")
     );
     o.datatype = "uinteger";
-    o.default = 0;
+    o.default = 10;
     o.modalonly = true;
+    o.rmempty = false;
     o.depends("link_advanced_enable", "1");
 
     o = s.taboption(
@@ -761,11 +827,12 @@ return view.extend({
       form.Value,
       "link_advanced_sleep_time",
       _("Retry Interval"),
-      _("Retry Interval, unit is seconds, default 0 is 3 seconds")
+      _("The retry interval is in seconds. The default value is 3 seconds. 0 means the interval is 0 seconds.")
     );
     o.datatype = "uinteger";
-    o.default = 0;
+    o.default = 3;
     o.modalonly = true;
+    o.rmempty = false;
     o.depends("link_advanced_enable", "1");
 
     // **********************************************************************

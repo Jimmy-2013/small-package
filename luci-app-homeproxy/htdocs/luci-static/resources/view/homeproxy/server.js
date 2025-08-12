@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: GPL-2.0-only
  *
- * Copyright (C) 2022-2023 ImmortalWrt.org
+ * Copyright (C) 2022-2025 ImmortalWrt.org
  */
 
 'use strict';
@@ -9,11 +9,12 @@
 'require poll';
 'require rpc';
 'require uci';
+'require ui';
 'require view';
 
 'require homeproxy as hp';
 
-var callServiceList = rpc.declare({
+const callServiceList = rpc.declare({
 	object: 'service',
 	method: 'list',
 	params: ['name'],
@@ -22,7 +23,7 @@ var callServiceList = rpc.declare({
 
 function getServiceStatus() {
 	return L.resolveDefault(callServiceList('homeproxy'), {}).then((res) => {
-		var isRunning = false;
+		let isRunning = false;
 		try {
 			isRunning = res['homeproxy']['instances']['sing-box-s']['running'];
 		} catch (e) { }
@@ -30,28 +31,79 @@ function getServiceStatus() {
 	});
 }
 
-function renderStatus(isRunning) {
-	var spanTemp = '<em><span style="color:%s"><strong>%s %s</strong></span></em>';
-	var renderHTML;
+function renderStatus(isRunning, version) {
+	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
+	let renderHTML;
 	if (isRunning)
-		renderHTML = spanTemp.format('green', _('HomeProxy Server'), _('RUNNING'));
+		renderHTML = spanTemp.format('green', _('HomeProxy Server'), version, _('RUNNING'));
 	else
-		renderHTML = spanTemp.format('red', _('HomeProxy Server'), _('NOT RUNNING'));
+		renderHTML = spanTemp.format('red', _('HomeProxy Server'), version, _('NOT RUNNING'));
 
 	return renderHTML;
 }
 
+function handleGenKey(option) {
+	let section_id = this.section.section;
+	let type = this.section.getOption('type')?.formvalue(section_id);
+	let widget = L.bind(function(option) {
+		return this.map.findElement('id', 'widget.' + this.cbid(section_id).replace(/\.[^\.]+$/, '.') + option);
+	}, this);
+
+	const callSingBoxGenerator = rpc.declare({
+		object: 'luci.homeproxy',
+		method: 'singbox_generator',
+		params: ['type', 'params'],
+		expect: { '': {} }
+	});
+
+	if (typeof option === 'object') {
+		return callSingBoxGenerator(option.type, option.params).then((ret) => {
+			if (ret.result)
+				for (let key in option.result)
+					widget(option.result[key]).value = ret.result[key] || '';
+			else
+				ui.addNotification(null, E('p', _('Failed to generate %s, error: %s.').format(type, ret.error)));
+		});
+	} else {
+		let password, required_method;
+
+		if (option === 'uuid')
+			required_method = 'uuid';
+		else if (type === 'shadowsocks')
+			required_method = this.section.getOption('shadowsocks_encrypt_method')?.formvalue(section_id);
+
+		switch (required_method) {
+			case 'none':
+				password = '';
+				break;
+			case 'uuid':
+				password = hp.generateRand('uuid');
+				break;
+			default:
+				password = hp.generateRand('hex', 16);
+				break;
+		}
+		/* AEAD */
+		(function(length) {
+			if (length && length > 0)
+				password = hp.generateRand('base64', length);
+		}(hp.shadowsocks_encrypt_length[required_method]));
+
+		return widget(option).value = password;
+	}
+}
+
 return view.extend({
-	load: function() {
+	load() {
 		return Promise.all([
 			uci.load('homeproxy'),
 			hp.getBuiltinFeatures()
 		]);
 	},
 
-	render: function(data) {
-		var m, s, o;
-		var features = data[1];
+	render(data) {
+		let m, s, o;
+		let features = data[1];
 
 		m = new form.Map('homeproxy', _('HomeProxy Server'),
 			_('The modern ImmortalWrt proxy platform for ARM64/AMD64.'));
@@ -60,8 +112,8 @@ return view.extend({
 		s.render = function () {
 			poll.add(function () {
 				return L.resolveDefault(getServiceStatus()).then((res) => {
-					var view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(res);
+					let view = document.getElementById('service_status');
+					view.innerHTML = renderStatus(res, features.version);
 				});
 			});
 
@@ -73,10 +125,6 @@ return view.extend({
 		s = m.section(form.NamedSection, 'server', 'homeproxy', _('Global settings'));
 
 		o = s.option(form.Flag, 'enabled', _('Enable'));
-		o.default = o.disabled;
-		o.rmempty = false;
-
-		o = s.option(form.Flag, 'auto_firewall', _('Auto configure firewall'));
 		o.default = o.disabled;
 		o.rmempty = false;
 
@@ -100,6 +148,10 @@ return view.extend({
 		o.rmempty = false;
 		o.editable = true;
 
+		o = s.option(form.Flag, 'firewall', _('Firewall'),
+			_('Allow access from the Internet.'));
+		o.editable = true;
+
 		o = s.option(form.ListValue, 'type', _('Type'));
 		o.value('http', _('HTTP'));
 		if (features.with_quic) {
@@ -107,6 +159,7 @@ return view.extend({
 			o.value('hysteria2', _('Hysteria2'));
 			o.value('naive', _('NaïveProxy'));
 		}
+		o.value('mixed', _('Mixed'));
 		o.value('shadowsocks', _('Shadowsocks'));
 		o.value('socks', _('Socks'));
 		o.value('trojan', _('Trojan'));
@@ -128,25 +181,37 @@ return view.extend({
 
 		o = s.option(form.Value, 'username', _('Username'));
 		o.depends('type', 'http');
+		o.depends('type', 'mixed');
 		o.depends('type', 'naive');
 		o.depends('type', 'socks');
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'password', _('Password'));
 		o.password = true;
-		o.depends({'type': /^(http|naive|socks)$/, 'username': /[\s\S]/});
+		o.depends({'type': /^(http|mixed|naive|socks)$/, 'username': /[\s\S]/});
 		o.depends('type', 'hysteria2');
 		o.depends('type', 'shadowsocks');
 		o.depends('type', 'trojan');
 		o.depends('type', 'tuic');
+		o.renderWidget = function() {
+			let node = form.Value.prototype.renderWidget.apply(this, arguments);
+
+			(node.querySelector('.control-group') || node).appendChild(E('button', {
+				'class': 'cbi-button cbi-button-apply',
+				'title': _('Generate'),
+				'click': ui.createHandlerFn(this, handleGenKey, this.option)
+			}, [ _('Generate') ]));
+
+			return node;
+		}
 		o.validate = function(section_id, value) {
 			if (section_id) {
-				var type = this.map.lookupOption('type', section_id)[0].formvalue(section_id);
-				var required_type = [ 'http', 'naive', 'socks', 'shadowsocks' ];
+				let type = this.section.formvalue(section_id, 'type');
+				let required_type = [ 'http', 'mixed', 'naive', 'socks', 'shadowsocks' ];
 
 				if (required_type.includes(type)) {
 					if (type === 'shadowsocks') {
-						var encmode = this.map.lookupOption('shadowsocks_encrypt_method', section_id)[0].formvalue(section_id);
+						let encmode = this.section.formvalue(section_id, 'shadowsocks_encrypt_method');
 						if (encmode === 'none')
 							return true;
 						else if (encmode === '2022-blake3-aes-128-gcm')
@@ -211,6 +276,17 @@ return view.extend({
 		o = s.option(form.Value, 'hysteria_obfs_password', _('Obfuscate password'));
 		o.depends('type', 'hysteria');
 		o.depends({'type': 'hysteria2', 'hysteria_obfs_type': /[\s\S]/});
+		o.renderWidget = function() {
+			let node = form.Value.prototype.renderWidget.apply(this, arguments);
+
+			(node.querySelector('.control-group') || node).appendChild(E('button', {
+				'class': 'cbi-button cbi-button-apply',
+				'title': _('Generate'),
+				'click': ui.createHandlerFn(this, handleGenKey, this.option)
+			}, [ _('Generate') ]));
+
+			return node;
+		}
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'hysteria_recv_window_conn', _('QUIC stream receive window'),
@@ -254,7 +330,7 @@ return view.extend({
 
 		/* Shadowsocks config */
 		o = s.option(form.ListValue, 'shadowsocks_encrypt_method', _('Encrypt method'));
-		for (var i of hp.shadowsocks_encrypt_methods)
+		for (let i of hp.shadowsocks_encrypt_methods)
 			o.value(i);
 		o.default = 'aes-128-gcm';
 		o.depends('type', 'shadowsocks');
@@ -265,6 +341,17 @@ return view.extend({
 		o.depends('type', 'tuic');
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
+		o.renderWidget = function() {
+			let node = form.Value.prototype.renderWidget.apply(this, arguments);
+
+			(node.querySelector('.control-group') || node).appendChild(E('button', {
+				'class': 'cbi-button cbi-button-apply',
+				'title': _('Generate'),
+				'click': ui.createHandlerFn(this, handleGenKey, this.option)
+			}, [ _('Generate') ]));
+
+			return node;
+		}
 		o.validate = hp.validateUUID;
 		o.modalonly = true;
 
@@ -277,7 +364,7 @@ return view.extend({
 		o.depends('type', 'tuic');
 		o.modalonly = true;
 
-		o = s.option(form.ListValue, 'tuic_auth_timeout', _('Auth timeout'),
+		o = s.option(form.Value, 'tuic_auth_timeout', _('Auth timeout'),
 			_('How long the server should wait for the client to send the authentication command (in seconds).'));
 		o.datatype = 'uinteger';
 		o.default = '3';
@@ -326,7 +413,7 @@ return view.extend({
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
 		o.onchange = function(ev, section_id, value) {
-			var desc = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id)).nextElementSibling;
+			let desc = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id)).nextElementSibling;
 			if (value === 'http')
 				desc.innerHTML = _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.');
 			else if (value === 'quic')
@@ -334,7 +421,7 @@ return view.extend({
 			else
 				desc.innerHTML = _('No TCP transport, plain HTTP is merged into the HTTP transport.');
 
-			var tls_element = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
+			let tls_element = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
 			if ((value === 'http' && tls_element.checked) || (value === 'grpc' && !features.with_grpc))
 				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
 					_('Specifies the time (in seconds) until idle clients should be closed with a GOAWAY frame. PING frames are not considered as activity.');
@@ -457,13 +544,14 @@ return view.extend({
 		o.depends('type', 'hysteria2');
 		o.depends('type', 'naive');
 		o.depends('type', 'trojan');
+		o.depends('type', 'tuic');
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
 		o.rmempty = false;
 		o.validate = function(section_id, value) {
 			if (section_id) {
-				var type = this.map.lookupOption('type', section_id)[0].formvalue(section_id);
-				var tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
+				let type = this.map.lookupOption('type', section_id)[0].formvalue(section_id);
+				let tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
 
 				if (['hysteria', 'hysteria2', 'tuic'].includes(type)) {
 					tls.checked = true;
@@ -479,8 +567,7 @@ return view.extend({
 
 		o = s.option(form.Value, 'tls_sni', _('TLS SNI'),
 			_('Used to verify the hostname on the returned certificates unless insecure is given.'));
-		o.depends({'tls': '1', 'tls_reality': '0'});
-		o.depends({'tls': '1', 'tls_reality': null});
+		o.depends('tls', '1');
 		o.modalonly = true;
 
 		o = s.option(form.DynamicList, 'tls_alpn', _('TLS ALPN'),
@@ -491,7 +578,7 @@ return view.extend({
 		o = s.option(form.ListValue, 'tls_min_version', _('Minimum TLS version'),
 			_('The minimum TLS version that is acceptable.'));
 		o.value('', _('default'));
-		for (var i of hp.tls_versions)
+		for (let i of hp.tls_versions)
 			o.value(i);
 		o.depends('tls', '1');
 		o.modalonly = true;
@@ -499,14 +586,14 @@ return view.extend({
 		o = s.option(form.ListValue, 'tls_max_version', _('Maximum TLS version'),
 			_('The maximum TLS version that is acceptable.'));
 		o.value('', _('default'));
-		for (var i of hp.tls_versions)
+		for (let i of hp.tls_versions)
 			o.value(i);
 		o.depends('tls', '1');
 		o.modalonly = true;
 
-		o = s.option(form.MultiValue, 'tls_cipher_suites', _('Cipher suites'),
+		o = s.option(hp.CBIStaticList, 'tls_cipher_suites', _('Cipher suites'),
 			_('The elliptic curves that will be used in an ECDHE handshake, in preference order. If empty, the default will be used.'));
-		for (var i of hp.tls_cipher_suites)
+		for (let i of hp.tls_cipher_suites)
 			o.value(i);
 		o.depends('tls', '1');
 		o.optional = true;
@@ -669,6 +756,7 @@ return view.extend({
 		o.depends({'tls': '1', 'tls_acme': '0', 'tls_reality': '0'});
 		o.depends({'tls': '1', 'tls_acme': null, 'tls_reality': '0'});
 		o.depends({'tls': '1', 'tls_acme': null, 'tls_reality': null});
+		o.validate = hp.validateCertificatePath;
 		o.rmempty = false;
 		o.modalonly = true;
 
@@ -687,6 +775,7 @@ return view.extend({
 		o.depends({'tls': '1', 'tls_acme': '0', 'tls_reality': null});
 		o.depends({'tls': '1', 'tls_acme': null, 'tls_reality': '0'});
 		o.depends({'tls': '1', 'tls_acme': null, 'tls_reality': null});
+		o.validate = hp.validateCertificatePath;
 		o.rmempty = false;
 		o.modalonly = true;
 
@@ -696,6 +785,53 @@ return view.extend({
 		o.inputtitle = _('Upload...');
 		o.depends({'tls': '1', 'tls_key_path': '/etc/homeproxy/certs/server_privatekey.pem'});
 		o.onclick = L.bind(hp.uploadCertificate, this, _('private key'), 'server_privatekey');
+		o.modalonly = true;
+
+		o = s.option(form.TextValue, 'tls_ech_key', _('ECH key'));
+		o.placeholder = '-----BEGIN ECH KEYS-----\nACBE2+piYBLrOywCbRYU+ZpEkk8keeBlUXbKqLRmQ/68FwBL/g0ARwAAIAAgn8HI\n93RfdV/LaDk+LC9H4h+4WhVBFmWKdhiT3vvpGi8ACAABAAEAAQADABRvdXRlci1z\nbmkuYW55LmRvbWFpbgAA\n-----END ECH KEYS-----';
+		o.monospace = true;
+		o.cols = 30
+		o.rows = 3;
+		o.hp_options = {
+			type: 'ech-keypair',
+			params: '',
+			result: {
+				ech_key: o.option,
+				ech_cfg: 'tls_ech_config'
+			}
+		}
+		o.renderWidget = function(section_id, option_index, cfgvalue) {
+			let node = form.TextValue.prototype.renderWidget.apply(this, arguments);
+			const cbid = this.cbid(section_id) + '._outer_sni';
+
+			node.appendChild(E('div',  { 'class': 'control-group' }, [
+				E('input', {
+					id: cbid,
+					class: 'cbi-input-text',
+					style: 'width: 10em',
+					placeholder: 'outer-sni.any.domain'
+				}),
+				E('button', {
+					class: 'cbi-button cbi-button-add',
+					click: ui.createHandlerFn(this, function() {
+						this.hp_options.params = document.getElementById(cbid).value;
+
+						return handleGenKey.call(this, this.hp_options);
+					})
+				}, [ _('Generate') ])
+			]));
+
+			return node;
+		}
+		o.depends('tls', '1');
+		o.modalonly = true;
+
+		o = s.option(form.TextValue, 'tls_ech_config', _('ECH config'));
+		o.placeholder = '-----BEGIN ECH CONFIGS-----\nAEv+DQBHAAAgACCfwcj3dF91X8toOT4sL0fiH7haFUEWZYp2GJPe++kaLwAIAAEA\nAQABAAMAFG91dGVyLXNuaS5hbnkuZG9tYWluAAA=\n-----END ECH CONFIGS-----';
+		o.monospace = true;
+		o.cols = 30
+		o.rows = 3;
+		o.depends('tls', '1');
 		o.modalonly = true;
 		/* TLS config end */
 
@@ -717,14 +853,11 @@ return view.extend({
 		o.depends({'network': 'tcp', '!reverse': true});
 		o.modalonly = true;
 
-		o = s.option(form.Flag, 'sniff_override', _('Override destination'),
-			_('Override the connection destination address with the sniffed domain.'));
-		o.rmempty = false;
-
-		o = s.option(form.ListValue, 'domain_strategy', _('Domain strategy'),
-			_('If set, the requested domain name will be resolved to IP before routing.'));
-		for (var i in hp.dns_strategy)
-			o.value(i, hp.dns_strategy[i])
+		o = s.option(form.Value, 'udp_timeout', _('UDP NAT expiration time'),
+			_('In seconds.'));
+		o.datatype = 'uinteger';
+		o.placeholder = '300';
+		o.depends({'network': 'tcp', '!reverse': true});
 		o.modalonly = true;
 
 		o = s.option(form.ListValue, 'network', _('Network'));

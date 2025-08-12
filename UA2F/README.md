@@ -8,8 +8,10 @@
 如果遇到了任何问题，欢迎提出 Issues，但是更欢迎直接提交 Pull Request
 
 > 由于新加入的 CONNMARK 影响，编译内核时需要添加 `NETFILTER_NETLINK_GLUE_CT` flag
+ 
+> 可以在网页 [http://ua-check.stagoh.com](http://ua-check.stagoh.com) 上测试 UA2F 是否正常工作
 
-## uci command
+## Commands
 
 ```bash
 # 启用 UA2F
@@ -31,6 +33,9 @@ uci set ua2f.firewall.handle_intranet=1
 # 使用自定义 User-Agent
 uci set ua2f.main.custom_ua="Test UA/1.0"
 
+# 禁用 Conntrack 标记，这会降低性能，但是有助于和其他修改 Connmark 的软件共存
+uci set ua2f.main.disable_connmark=1
+
 # 应用配置
 uci commit ua2f
 
@@ -39,6 +44,9 @@ service ua2f enable
 
 # 启动 UA2F
 service ua2f start
+
+# 读取日志
+logread | grep UA2F
 ```
 
 ## 自定义 User-Agent

@@ -11,11 +11,11 @@ import { open } from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
 
-import { urldecode, urlencode, urldecode_params } from 'luci.http';
+import { urldecode, urlencode } from 'luci.http';
 import { init_action } from 'luci.sys';
 
 import {
-	calcStringMD5, wGET, executeCommand, decodeBase64Str,
+	calcStringMD5, wGET, decodeBase64Str,
 	getTime, isEmpty, parseURL, validation,
 	HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -35,6 +35,7 @@ const allow_insecure = uci.get(uciconfig, ucisubscription, 'allow_insecure') || 
       filter_keywords = uci.get(uciconfig, ucisubscription, 'filter_keywords') || [],
       packet_encoding = uci.get(uciconfig, ucisubscription, 'packet_encoding') || 'xudp',
       subscription_urls = uci.get(uciconfig, ucisubscription, 'subscription_url') || [],
+      user_agent = uci.get(uciconfig, ucisubscription, 'user_agent'),
       via_proxy = uci.get(uciconfig, ucisubscription, 'update_via_proxy') || '0';
 
 const routing_mode = uci.get(uciconfig, ucimain, 'routing_mode') || 'bypass_mainalnd_china';
@@ -102,7 +103,7 @@ function parse_uri(uri) {
 		switch (uri[0]) {
 		case 'http':
 		case 'https':
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 
 			config = {
 				label: url.hash ? urldecode(url.hash) : null,
@@ -117,11 +118,11 @@ function parse_uri(uri) {
 			break;
 		case 'hysteria':
 			/* https://github.com/HyNetwork/hysteria/wiki/URI-Scheme */
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 			params = url.searchParams;
 
 			if (!sing_features.with_quic || (params.protocol && params.protocol !== 'udp')) {
-				log(sprintf('Skipping unsupported %s node: %s.', 'hysteria', urldecode(url.hash) || url.hostname));
+				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				if (!sing_features.with_quic)
 					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
 
@@ -149,11 +150,11 @@ function parse_uri(uri) {
 		case 'hysteria2':
 		case 'hy2':
 			/* https://v2.hysteria.network/docs/developers/URI-Scheme/ */
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 			params = url.searchParams;
 
 			if (!sing_features.with_quic) {
-				log(sprintf('Skipping unsupported %s node: %s.', 'hysteria2', urldecode(url.hash) || url.hostname));
+				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
 				return null;
 			}
@@ -169,7 +170,7 @@ function parse_uri(uri) {
 				hysteria_obfs_type: params.obfs,
 				hysteria_obfs_password: params['obfs-password'],
 				tls: '1',
-				tls_insecure: params.insecure ? '1' : '0',
+				tls_insecure: (params.insecure === '1') ? '1' : '0',
 				tls_sni: params.sni
 			};
 
@@ -179,7 +180,7 @@ function parse_uri(uri) {
 		case 'socks4a':
 		case 'socsk5':
 		case 'socks5h':
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 
 			config = {
 				label: url.hash ? urldecode(url.hash) : null,
@@ -207,7 +208,7 @@ function parse_uri(uri) {
 			/* https://github.com/shadowsocks/shadowsocks-org/commit/78ca46cd6859a4e9475953ed34a2d301454f579e */
 
 			/* SIP002 format https://shadowsocks.org/guide/sip002.html */
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 
 			let ss_userinfo = {};
 			if (url.username && url.password)
@@ -215,16 +216,16 @@ function parse_uri(uri) {
 				ss_userinfo = [url.username, urldecode(url.password)];
 			else if (url.username)
 				/* User info encoded with base64 */
-				ss_userinfo = split(decodeBase64Str(urldecode(url.username)), ':');
+				ss_userinfo = split(decodeBase64Str(urldecode(url.username)), ':', 2);
 
 			let ss_plugin, ss_plugin_opts;
 			if (url.search && url.searchParams.plugin) {
-				const ss_plugin_info = split(url.searchParams.plugin, ';');
+				const ss_plugin_info = split(url.searchParams.plugin, ';', 2);
 				ss_plugin = ss_plugin_info[0];
 				if (ss_plugin === 'simple-obfs')
 					/* Fix non-standard plugin name */
 					ss_plugin = 'obfs-local';
-				ss_plugin_opts = slice(ss_plugin_info, 1) ? join(';', slice(ss_plugin_info, 1)) : null;
+				ss_plugin_opts = ss_plugin_info[1];
 			}
 
 			config = {
@@ -241,7 +242,7 @@ function parse_uri(uri) {
 			break;
 		case 'trojan':
 			/* https://p4gefau1t.github.io/trojan-go/developer/url/ */
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 			params = url.searchParams || {};
 
 			config = {
@@ -272,11 +273,11 @@ function parse_uri(uri) {
 			break;
 		case 'tuic':
 			/* https://github.com/daeuniverse/dae/discussions/182 */
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic) {
-				log(sprintf('Skipping unsupported %s node: %s.', 'TUIC', urldecode(url.hash) || url.hostname));
+				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
 
 				return null;
@@ -299,15 +300,15 @@ function parse_uri(uri) {
 			break;
 		case 'vless':
 			/* https://github.com/XTLS/Xray-core/discussions/716 */
-			url = parseURL('http://' + uri[1]);
+			url = parseURL('http://' + uri[1]) || {};
 			params = url.searchParams;
 
 			/* Unsupported protocol */
 			if (params.type === 'kcp') {
-				log(sprintf('Skipping sunsupported %s node: %s.', 'VLESS', urldecode(url.hash) || url.hostname));
+				log(sprintf('Skipping sunsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				return null;
 			} else if (params.type === 'quic' && ((params.quicSecurity && params.quicSecurity !== 'none') || !sing_features.with_quic)) {
-				log(sprintf('Skipping sunsupported %s node: %s.', 'VLESS', urldecode(url.hash) || url.hostname));
+				log(sprintf('Skipping sunsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				if (!sing_features.with_quic)
 					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
 
@@ -341,6 +342,10 @@ function parse_uri(uri) {
 					config.http_path = params.path ? urldecode(params.path) : null;
 				}
 				break;
+			case 'httpupgrade':
+				config.httpupgrade_host = params.host ? urldecode(params.host) : null;
+				config.http_path = params.path ? urldecode(params.path) : null;
+				break;
 			case 'ws':
 				config.ws_host = params.host ? urldecode(params.host) : null;
 				config.ws_path = params.path ? urldecode(params.path) : null;
@@ -356,27 +361,27 @@ function parse_uri(uri) {
 		case 'vmess':
 			/* "Lovely" shadowrocket format */
 			if (match(uri, /&/)) {
-				log(sprintf('Skipping unsupported %s format.', 'VMess'));
+				log(sprintf('Skipping unsupported %s format.', uri[0]));
 				return null;
 			}
 
-			/* https://github.com/2dust/v2rayN/wiki/%E5%88%86%E4%BA%AB%E9%93%BE%E6%8E%A5%E6%A0%BC%E5%BC%8F%E8%AF%B4%E6%98%8E(ver-2) */
+			/* https://github.com/2dust/v2rayN/wiki/Description-of-VMess-share-link */
 			try {
-				uri = json(decodeBase64Str(uri[1]));
+				uri = json(decodeBase64Str(uri[1])) || {};
 			} catch(e) {
-				log(sprintf('Skipping unsupported %s format.', 'VMess'));
+				log(sprintf('Skipping unsupported %s format.', uri[0]));
 				return null;
 			}
 
 			if (uri.v != '2') {
-				log(sprintf('Skipping unsupported %s format.', 'VMess'));
+				log(sprintf('Skipping unsupported %s format.', uri[0]));
 				return null;
 			/* Unsupported protocol */
 			} else if (uri.net === 'kcp') {
-				log(sprintf('Skipping unsupported %s node: %s.', 'VMess', uri.ps || uri.add));
+				log(sprintf('Skipping unsupported %s node: %s.', uri[0], uri.ps || uri.add));
 				return null;
 			} else if (uri.net === 'quic' && ((uri.type && uri.type !== 'none') || uri.path || !sing_features.with_quic)) {
-				log(sprintf('Skipping unsupported %s node: %s.', 'VMess', uri.ps || uri.add));
+				log(sprintf('Skipping unsupported %s node: %s.', uri[0], uri.ps || uri.add));
 				if (!sing_features.with_quic)
 					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
 
@@ -385,7 +390,7 @@ function parse_uri(uri) {
 			/*
 			 * https://www.v2fly.org/config/protocols/vmess.html#vmess-md5-%E8%AE%A4%E8%AF%81%E4%BF%A1%E6%81%AF-%E6%B7%98%E6%B1%B0%E6%9C%BA%E5%88%B6
 			 * else if (uri.aid && int(uri.aid) !== 0) {
-			 * 	log(sprintf('Skipping unsupported %s node: %s.', 'VMess', uri.ps || uri.add));
+			 * 	log(sprintf('Skipping unsupported %s node: %s.', uri[0], uri.ps || uri.add));
 			 * 	return null;
 			 * }
 			 */
@@ -402,7 +407,8 @@ function parse_uri(uri) {
 				transport: (uri.net !== 'tcp') ? uri.net : null,
 				tls: (uri.tls === 'tls') ? '1' : '0',
 				tls_sni: uri.sni || uri.host,
-				tls_alpn: uri.alpn ? split(uri.alpn, ',') : null
+				tls_alpn: uri.alpn ? split(uri.alpn, ',') : null,
+				tls_utls: sing_features.with_utls ? uri.fp : null
 			};
 			switch (uri.net) {
 			case 'grpc':
@@ -412,9 +418,13 @@ function parse_uri(uri) {
 			case 'tcp':
 				if (uri.net === 'h2' || uri.type === 'http') {
 					config.transport = 'http';
-					config.http_host = uri.host ? uri.host.split(',') : null;
+					config.http_host = uri.host ? split(uri.host, ',') : null;
 					config.http_path = uri.path;
 				}
+				break;
+			case 'httpupgrade':
+				config.httpupgrade_host = uri.host;
+				config.http_path = uri.path;
 				break;
 			case 'ws':
 				config.ws_host = uri.host;
@@ -453,17 +463,15 @@ function main() {
 	}
 
 	for (let url in subscription_urls) {
+		url = replace(url, /#.*$/, '');
 		const groupHash = calcStringMD5(url);
 		node_cache[groupHash] = {};
 
-		const res = wGET(url);
-		if (!res) {
+		const res = wGET(url, user_agent);
+		if (isEmpty(res)) {
 			log(sprintf('Failed to fetch resources from %s.', url));
 			continue;
 		}
-
-		push(node_result, []);
-		const subindex = length(node_result) - 1;
 
 		let nodes;
 		try {
@@ -474,7 +482,7 @@ function main() {
 				map(nodes, (_, i) => nodes[i].nodetype = 'sip008');
 		} catch(e) {
 			nodes = decodeBase64Str(res);
-			nodes = nodes ? split(trim(replace(nodes, / /g, '_')), '\n') : {};
+			nodes = nodes ? split(trim(replace(nodes, / /g, '_')), '\n') : [];
 		}
 
 		let count = 0;
@@ -502,7 +510,8 @@ function main() {
 					config.packet_encoding = packet_encoding;
 
 				config.grouphash = groupHash;
-				push(node_result[subindex], config);
+				push(node_result, []);
+				push(node_result[length(node_result)-1], config);
 				node_cache[groupHash][confHash] = config;
 				node_cache[groupHash][nameHash] = config;
 
@@ -510,7 +519,10 @@ function main() {
 			}
 		}
 
-		log(sprintf('Successfully fetched %s nodes of total %s from %s.', count, length(nodes), url));
+		if (count == 0)
+			log(sprintf('No valid node found in %s.', url));
+		else
+			log(sprintf('Successfully fetched %s nodes of total %s from %s.', count, length(nodes), url));
 	}
 
 	if (isEmpty(node_result)) {
@@ -541,7 +553,10 @@ function main() {
 			log(sprintf('Removing node: %s.', cfg.label || cfg['name']));
 		} else {
 			map(keys(node_cache[cfg.grouphash][cfg['.name']]), (v) => {
-				uci.set(uciconfig, cfg['.name'], v, node_cache[cfg.grouphash][cfg['.name']][v]);
+				if (v in node_cache[cfg.grouphash][cfg['.name']])
+					uci.set(uciconfig, cfg['.name'], v, node_cache[cfg.grouphash][cfg['.name']][v]);
+				else
+					uci.delete(uciconfig, cfg['.name'], v);
 			});
 			node_cache[cfg.grouphash][cfg['.name']].isExisting = true;
 		}
@@ -564,7 +579,18 @@ function main() {
 	if (!isEmpty(main_node)) {
 		const first_server = uci.get_first(uciconfig, ucinode);
 		if (first_server) {
-			if (!uci.get(uciconfig, main_node)) {
+			let main_urltest_nodes;
+			if (main_node === 'urltest') {
+				main_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_urltest_nodes'), (v) => {
+					if (!uci.get(uciconfig, v)) {
+						log(sprintf('Node %s is gone, removing from urltest list.', v));
+						return false;
+					}
+					return true;
+				});
+			}
+
+			if ((main_node === 'urltest') ? !length(main_urltest_nodes) : !uci.get(uciconfig, main_node)) {
 				uci.set(uciconfig, ucimain, 'main_node', first_server);
 				uci.commit(uciconfig);
 				need_restart = true;
@@ -573,7 +599,18 @@ function main() {
 			}
 
 			if (!isEmpty(main_udp_node) && main_udp_node !== 'same') {
-				if (!uci.get(uciconfig, main_udp_node)) {
+				let main_udp_urltest_nodes;
+				if (main_udp_node === 'urltest') {
+					main_udp_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes'), (v) => {
+						if (!uci.get(uciconfig, v)) {
+							log(sprintf('Node %s is gone, removing from urltest list.', v));
+							return false;
+						}
+						return true;
+					});
+				}
+
+				if ((main_udp_node === 'urltest') ? !length(main_udp_urltest_nodes) : !uci.get(uciconfig, main_udp_node)) {
 					uci.set(uciconfig, ucimain, 'main_udp_node', first_server);
 					uci.commit(uciconfig);
 					need_restart = true;

@@ -8,6 +8,34 @@ shift 1
 ARCH="default"
 IMAGE_NAME='default'
 
+istoreenhance_pull() {
+  local image_name="$1"
+  echo "docker pull ${image_name}"
+  docker pull "$image_name"
+  if [ $? -ne 0 ]; then
+    local isInstall=$(command -v iStoreEnhance)
+    local isRun=$(pgrep iStoreEnhance)
+      # 判断iStoreEnhance是否运行
+    if [ -n "$isRun" ]; then
+      # 使用 docker info 获取包含 registry.linkease.net 的镜像服务器地址
+      local registry_mirror=$(docker info 2>/dev/null | awk -F': ' '/Registry Mirrors:/ {found=1; next} found && NF {if ($0 ~ /registry.linkease.net/) {print; exit}}')
+
+      if [[ -n "$registry_mirror" ]]; then
+        echo "istoreenhance_pull failed"
+      else
+        echo "download failed, not found registry.linkease.net"
+      fi
+    else
+      if [ -z "$isInstall" ]; then
+        echo "download failed, install istoreenhance to speedup, \"https://doc.linkease.com/zh/guide/istore/software/istoreenhance.html\""
+      else
+        echo "download failed, enable istoreenhance to speedup"
+      fi
+    fi
+    exit 1
+  fi
+}
+
 get_image() {
   if grep -Eq ',rtd-?129.$' /proc/device-tree/compatible 2>/dev/null; then
     ARCH="rtd129x"
@@ -31,8 +59,7 @@ get_image() {
 
 do_install() {
   get_image
-  echo "docker pull ${IMAGE_NAME}"
-  docker pull ${IMAGE_NAME}
+  istoreenhance_pull ${IMAGE_NAME}
   docker rm -f jellyfin
 
   do_install_detail
@@ -81,7 +108,7 @@ do_install_detail() {
     cmd="$cmd\
     -t \
     --privileged "
-    for dev in iep rga dri dma_heap mpp_service mpp-service vpu_service vpu-service \
+    for dev in iep rga dri dma_heap mali0 mpp_service mpp-service vpu_service vpu-service \
         hevc_service hevc-service rkvdec rkvenc avsd vepu h265e ; do
       [ -e "/dev/$dev" ] && cmd="$cmd --device /dev/$dev"
     done
@@ -139,10 +166,10 @@ case ${ACTION} in
     docker ${ACTION} jellyfin
   ;;
   "status")
-    docker ps --all -f 'name=jellyfin' --format '{{.State}}'
+    docker ps --all -f 'name=^/jellyfin$' --format '{{.State}}'
   ;;
   "port")
-    docker ps --all -f 'name=jellyfin' --format '{{.Ports}}' | grep -om1 '0.0.0.0:[0-9]*->8096/tcp' | sed 's/0.0.0.0:\([0-9]*\)->.*/\1/'
+    docker ps --all -f 'name=^/jellyfin$' --format '{{.Ports}}' | grep -om1 '0.0.0.0:[0-9]*->8096/tcp' | sed 's/0.0.0.0:\([0-9]*\)->.*/\1/'
   ;;
   *)
     usage

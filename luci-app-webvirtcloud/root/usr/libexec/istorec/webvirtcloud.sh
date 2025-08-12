@@ -54,7 +54,7 @@ do_install() {
   echo "$cmd"
   eval "$cmd"
 
-  sleep 5
+  sleep 8
   echo "Running status:"
   /usr/sbin/vmeasedaemon runningStatus --pretty
 }
@@ -98,10 +98,10 @@ case ${ACTION} in
     docker ${ACTION} webvirtcloud
   ;;
   "status")
-    docker ps --all -f 'name=webvirtcloud' --format '{{.State}}'
+    docker ps --all -f 'name=^/webvirtcloud$' --format '{{.State}}'
   ;;
   "port")
-    docker ps --all -f 'name=webvirtcloud' --format '{{.Ports}}' | grep -om1 '0.0.0.0:[0-9]*' | sed 's/0.0.0.0://'
+    docker ps --all -f 'name=^/webvirtcloud$' --format '{{.Ports}}' | grep -om1 '0.0.0.0:[0-9]*' | sed 's/0.0.0.0://'
   ;;
   "gpu-passthrough")
     do_gpu_passthrough

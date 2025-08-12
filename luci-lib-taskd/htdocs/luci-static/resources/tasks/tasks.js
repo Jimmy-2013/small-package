@@ -24,7 +24,7 @@
                 if (oReq.status == 403) {
                     alert($gettext("Lost login status"));
                     location.href = location.href;
-                } else if (oReq.status == 404) {
+                } else if (oReq.status >= 400) {
                     reject(oEvent);
                 } else {
                     resolve(oReq);
@@ -66,6 +66,14 @@
                 return false;
             };
         }
+        const tasks_result_mask = container.querySelector("#tasks_result_mask");
+        if (taskd.show_mask_on_stopped) {
+            tasks_result_mask.onclick = function(){
+                tasks_result_mask.hidden=true;
+            };
+        } else {
+            tasks_result_mask.hidden=true;
+        }
         term.open(document.getElementById("tasks_xterm_log"));
 
         return {term,container};
@@ -77,7 +85,7 @@
         container.querySelector(".dialog-icon-close").hidden = true;
         term.write(content);
     };
-    const show_log = function(task_id, nohide) {
+    const show_log = function(task_id, nohide, onExit) {
         let showing = true;
         let running = true;
         const dialog = create_dialog({title:task_id, nohide, onhide:function(){showing=false;}});
@@ -96,6 +104,9 @@
             return false;
         };
         const checkTask = function() {
+            if (!showing) {
+                return Promise.resolve(false);
+            }
             return getTaskDetail(task_id).then(data=>{
                 if (!running) {
                     return false;
@@ -113,6 +124,7 @@
                     if (data.exit_code) {
                         container.classList.add('tasks_failed');
                     }
+                    onExit && onExit(data.exit_code);
                 }
                 // last pull
                 return showing;
@@ -154,16 +166,18 @@
                 }
             }).catch(err => {
                 if (showing) {
-                    if (err.target.status == 0) {
-                        title_view.innerText = task_id + ' (' + $gettext("Fetch log failed, retrying...") + ')';
-                        setTimeout(()=>pulllog(true), 1000);
-                    } else if (err.target.status == 403 || err.target.status == 404) {
-                        title_view.innerText = task_id + ' (' + $gettext(err.target.status == 403?"Lost login status":"Task does not exist or has been deleted") + ')';
-                        container.querySelector(".dialog-icon-close").hidden = true;
-                        container.classList.add('tasks_unknown');
-                    } else {
-                        console.error(err);
+                    console.error(err);
+                    if (err.target) {
+                        if (err.target.status == 0 || err.target.status == 502) {
+                            title_view.innerText = task_id + ' (' + $gettext("Fetch log failed, retrying...") + ')';
+                        } else if (err.target.status == 403 || err.target.status == 404) {
+                            title_view.innerText = task_id + ' (' + $gettext(err.target.status == 403?"Lost login status":"Task does not exist or has been deleted") + ')';
+                            container.querySelector(".dialog-icon-close").hidden = true;
+                            container.classList.add('tasks_unknown');
+                            return
+                        }
                     }
+                    setTimeout(()=>pulllog(true), 1000);
                 }
             });
         };
@@ -182,23 +196,23 @@
     // compat
     if (typeof(window.findParent) !== 'function') {
         const elem = function(e) {
-			return (e != null && typeof(e) == 'object' && 'nodeType' in e);
-		};
+            return (e != null && typeof(e) == 'object' && 'nodeType' in e);
+        };
         const matches = function(node, selector) {
-			var m = elem(node) ? node.matches || node.msMatchesSelector : null;
-			return m ? m.call(node, selector) : false;
-		};
+            var m = elem(node) ? node.matches || node.msMatchesSelector : null;
+            return m ? m.call(node, selector) : false;
+        };
         window.findParent = function (node, selector) {
-	        if (elem(node) && node.closest)
-				return node.closest(selector);
+            if (elem(node) && node.closest)
+                return node.closest(selector);
 
-			while (elem(node))
-				if (matches(node, selector))
-					return node;
-				else
-					node = node.parentNode;
+            while (elem(node))
+                if (matches(node, selector))
+                    return node;
+                else
+                    node = node.parentNode;
 
-			return null;
+            return null;
         };
     }
     if (typeof(window.cbi_submit) !== 'function') {

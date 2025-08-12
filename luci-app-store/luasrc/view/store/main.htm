@@ -14,7 +14,7 @@
             }
         });
         window.vue_base = vue_prefix + '/';
-        // window.istore_api_base = "https://istore.linkease.com";
+        // window.istore_api_base = "https://istore.istoreos.com";
         window.vue_lang_data = '/luci-static/istore/i18n/<%=lang%>.json?v=<%=id.version%>';
         window.vue_lang = '<%=lang%>';
         window.token = "<%=token%>";
@@ -36,7 +36,8 @@
 <script>
     (function() {
         let beforeunloadRegistered = false;
-        window.istore_log = function(flush_menu_onclose) {
+        taskd.show_mask_on_stopped = true;
+        window.istore_log = function(flush_menu_onclose, onExit) {
             if (flush_menu_onclose && !beforeunloadRegistered) {
                 beforeunloadRegistered = true;
                 window.addEventListener("beforeunload", function(event) {
@@ -44,7 +45,7 @@
                     return true;
                 });
             }
-            taskd.show_log("istore", true);
+            taskd.show_log("istore", true, onExit);
         };
     })();
 <%
